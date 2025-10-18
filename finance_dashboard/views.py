@@ -469,6 +469,9 @@ def about(request):
 
 
 def portfolio(request):
+    # Sync ForexPair data trước khi xử lý
+    update_forex_pairs()
+    
     trade_type_filter = request.GET.get("type", "All")
     
     # Xử lý cho cả user đã login và khách
@@ -548,6 +551,17 @@ def portfolio(request):
             "active_tab": trade_type_filter,
         },
     )
+
+def update_forex_pairs():
+    from .models import ForexPair
+    from django.utils import timezone
+    for symbol in ['EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD']:
+        yf_symbol = symbol + '=X'
+        data = get_forex_data(yf_symbol)  # Giả sử trả về dict với key 'last'
+        ForexPair.objects.update_or_create(
+            pair=symbol,
+            defaults={'current_rate': data.get('last', 0), 'last_updated': timezone.now()}
+        )
 
 def compute_portfolio_analytics(portfolios):
     analytics_data = []
