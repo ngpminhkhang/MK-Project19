@@ -28,9 +28,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-h8a$#1$rg)-n@4uqhcykr6ck6^x1fpun)+f3n+gj6o4x7qp88t'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'  # Set True tạm để debug nếu cần
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'  # True để debug
 
-ALLOWED_HOSTS = ['*', 'minhkhangportfolio.com', 'www.minhkhangportfolio.com', 'mkproject-1-5zai.onrender.com', '.onrender.com']  # Add explicit để fix DisallowedHost
+ALLOWED_HOSTS = ["*"]  # Hoặc thêm ['minhkhangportfolio.com', 'mkproject-vits.onrender.com']
 
 # Application definition
 
@@ -40,9 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    # 'cloudinary_storage',  # Uncomment nếu dùng Cloudinary, add trước staticfiles
     'django.contrib.staticfiles',
-    # 'cloudinary',  # Uncomment nếu dùng
     'finance_dashboard',
     'widget_tweaks',
 ]
@@ -82,17 +80,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 if 'DATABASE_URL' in os.environ:
-    # Production (Neon)
+    # Production (Neon via Render env)
     DATABASES = {
         'default': dj_database_url.config(
             conn_max_age=600,
             ssl_require=True,
         )
-    }
-    # Add OPTIONS cho Neon SNI nếu lỗi connect (thay your_endpoint_id bằng ep-xxx từ Neon hostname)
-    DATABASES['default']['OPTIONS'] = {
-        'sslmode': 'require',
-        'options': '-c endpoint=your_endpoint_id'
     }
 else:
     # Local (SQLite)
@@ -148,8 +141,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files (User uploaded files)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Nếu dùng Cloudinary, xóa và uncomment dưới
-# DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'  # Uncomment nếu dùng
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
