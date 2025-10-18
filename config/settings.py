@@ -28,9 +28,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-h8a$#1$rg)-n@4uqhcykr6ck6^x1fpun)+f3n+gj6o4x7qp88t'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False') == 'True' # False cho production
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'  # False cho production
 
-ALLOWED_HOSTS = ["*"] # Hoặc cụ thể ['mkproject-vits.onrender.com']
+ALLOWED_HOSTS = ["*"]  # Hoặc cụ thể ['mkproject-vits.onrender.com']
 
 # Application definition
 
@@ -175,3 +175,17 @@ CACHES = {
         }
     }
 }
+
+# AWS S3 Integration for Media Files (User uploads like PNG/JPG)
+# Chỉ áp dụng nếu env vars tồn tại (trên Render production)
+if 'AWS_STORAGE_BUCKET_NAME' in os.environ:
+    # Sử dụng S3 cho storage media
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'ap-southeast-1')  # Default region nếu chưa set
+    AWS_S3_FILE_OVERWRITE = False  # Không overwrite file cũ
+    AWS_DEFAULT_ACL = 'public-read'  # File public để hiển thị/download
+    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/'  # URL media từ S3
