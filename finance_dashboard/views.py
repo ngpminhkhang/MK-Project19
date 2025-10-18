@@ -699,41 +699,52 @@ def edit_insight(request, insight_id):
     insight = get_object_or_404(Insight, id=insight_id)
     
     if request.method == "GET":
-        # Trả về form edit
         form = InsightForm(instance=insight)
         context = {
             'insight': insight,
             'form': form
         }
-        
-        # LUÔN trả về modal template cho HTMX
         return render(request, "finance_dashboard/partials/edit_insight_modal.html", context)
     
     elif request.method == "POST":
         form = InsightForm(request.POST, request.FILES, instance=insight)
         
         if form.is_valid():
-            # Xử lý remove attachment nếu được chọn
-            if request.POST.get('remove_attachment') == 'true':
-                if insight.attached_image:
-                    insight.attached_image.delete(save=False)
-                    insight.attached_image = None
-                if insight.attached_file:
-                    insight.attached_file.delete(save=False)
-                    insight.attached_file = None
-            
-            # Lưu form
-            form.save()
-            
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({'success': True})
-            
-            messages.success(request, "Insight updated successfully!")
-            return redirect("insights")
+            try:
+                # Xử lý remove attachment nếu được chọn
+                if request.POST.get('remove_attachment') == 'true':
+                    if insight.attached_image:
+                        insight.attached_image.delete(save=False)
+                        insight.attached_image = None
+                    if insight.attached_file:
+                        insight.attached_file.delete(save=False)
+                        insight.attached_file = None
+                
+                # Lưu form
+                insight = form.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': True, 
+                        'message': 'Insight updated successfully!',
+                        'insight_id': insight.id
+                    })
+                
+                messages.success(request, "Insight updated successfully!")
+                return redirect("insights")
+                
+            except Exception as e:
+                logger.error(f"Error saving insight: {e}")
+                error_msg = f"Error saving insight: {str(e)}"
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'errors': error_msg})
+                messages.error(request, error_msg)
+                return redirect("insights")
         else:
+            error_msg = form.errors.as_text()
+            logger.error(f"Form validation errors: {error_msg}")
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({'success': False, 'errors': form.errors.as_text()})
-            
+                return JsonResponse({'success': False, 'errors': error_msg})
             messages.error(request, "Error updating insight.")
             return redirect("insights")
 
