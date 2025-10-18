@@ -28,9 +28,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-h8a$#1$rg)-n@4uqhcykr6ck6^x1fpun)+f3n+gj6o4x7qp88t'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'  # True để debug
+DEBUG = os.environ.get('DEBUG', 'False') == 'True' # False cho production
 
-ALLOWED_HOSTS = ["*"]  # Hoặc thêm ['minhkhangportfolio.com', 'mkproject-vits.onrender.com']
+ALLOWED_HOSTS = ["*"] # Hoặc cụ thể ['mkproject-vits.onrender.com']
 
 # Application definition
 
@@ -80,11 +80,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 if 'DATABASE_URL' in os.environ:
-    # Production (Neon via Render env)
+    # Production (Render)
     DATABASES = {
         'default': dj_database_url.config(
             conn_max_age=600,
-            ssl_require=True,
+            ssl_require=True
         )
     }
 else:
@@ -145,7 +145,6 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Authentication settings
