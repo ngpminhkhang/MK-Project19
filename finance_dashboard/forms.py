@@ -43,7 +43,7 @@ class WatchlistFilterForm(forms.Form):
     bb = forms.BooleanField(required=False, initial=False, label="Bollinger Bands")
 
 class TechnicalForm(forms.Form):
-    symbol = forms.CharField(max_length=10, initial="EURUSD=X")
+    symbol = forms.CharField(max_length=10, initial="EURUSD=x")
     indicators = forms.MultipleChoiceField(
         choices=[('sma','SMA'),('ema','EMA'),('rsi','RSI'),('macd','MACD')],
         widget=forms.CheckboxSelectMultiple,
@@ -59,6 +59,7 @@ class MacroForm(forms.Form):
 # --- Phase 3 ---
 
 SIDE_CHOICES = [("BUY", "BUY"), ("SELL", "SELL")]
+
 TRADE_TYPE_CHOICES = [("Live", "Live"), ("Backtest", "Backtest")]
 
 class TradeForm(forms.ModelForm):
@@ -71,6 +72,7 @@ class TradeForm(forms.ModelForm):
         ],
         widget=forms.Select(attrs={'class': 'form-control form-control-sm', 'id': 'id_category'})
     )
+    
     # Thêm field symbol với choices động
     symbol = forms.ChoiceField(
         choices=[],
@@ -94,8 +96,7 @@ class TradeForm(forms.ModelForm):
             # LOẠI BỎ widget cho 'ref'
         }
 
-    def __init__(self, *args, **kwargs):
-        user = kwargs.pop('user', None)
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if user:
             self.fields['portfolio'].queryset = Portfolio.objects.filter(user=user)
@@ -109,7 +110,7 @@ class TradeForm(forms.ModelForm):
             # LẤY FOREX PAIRS TỪ DATABASE THAY VÌ HARD-CODED
             forex_pairs = ForexPair.objects.all().order_by('pair')
             if forex_pairs.exists():
-                return [(pair.pair, pair.display_name) for pair in forex_pairs]
+                return [[pair.pair, pair.pair] for pair in forex_pairs]
             else:
                 # Fallback nếu chưa có data
                 return [
@@ -143,15 +144,21 @@ class PortfolioForm(forms.ModelForm):
 class InsightForm(forms.ModelForm):
     metrics_json = forms.CharField(
         required=False,
-        widget=forms.Textarea(attrs={'rows': 2, 'placeholder': '{"key": "value"} - Enter valid JSON or leave empty', 'class': 'form-control'}),
+        widget=forms.Textarea(attrs={
+            'rows': 2, 
+            'placeholder': '{"key": "value"} - Enter valid JSON or leave empty',
+            'class': 'form-control'
+        }),
         label='Metrics (JSON)'
     )
-
+    
     class Meta:
         model = Insight
         # LOẠI BỎ HOÀN TOÀN field metrics khỏi form
         fields = [
-            'title', 'summary', 'category', 'result', 'reason', 'analysis', 'lessons', 'attached_file', 'attached_image'
+            'title', 'summary', 'category', 'result',
+            'reason', 'analysis', 'lessons',
+            'attached_file', 'attached_image'
         ]
         widgets = {
             'summary': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
@@ -164,9 +171,10 @@ class InsightForm(forms.ModelForm):
             'category': forms.Select(attrs={'class': 'form-control'}),
             'result': forms.Select(attrs={'class': 'form-control'}),
         }
-
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        
         # Điền dữ liệu JSON vào metrics_json
         if self.instance and self.instance.pk:
             # Refresh instance từ database để đảm bảo có dữ liệu mới nhất
@@ -174,22 +182,23 @@ class InsightForm(forms.ModelForm):
                 refreshed_instance = Insight.objects.get(pk=self.instance.pk)
                 if refreshed_instance.metrics:
                     self.fields['metrics_json'].initial = json.dumps(
-                        refreshed_instance.metrics,
-                        indent=2,
+                        refreshed_instance.metrics, 
+                        indent=2, 
                         ensure_ascii=False
                     )
                 else:
-                    self.fields['metrics_json'].initial = ""
+                    self.fields['metrics_json'].initial = ''
             except Exception as e:
                 print(f"Error loading metrics: {e}")
-                self.fields['metrics_json'].initial = ""
-
+                self.fields['metrics_json'].initial = ''
+        
         for field in self.fields:
             self.fields[field].required = False
-
+    
     def clean_metrics_json(self):
         """Validate và parse JSON metrics"""
         metrics_json = self.cleaned_data.get('metrics_json', '').strip()
+        
         if not metrics_json:
             return {}  # Trả về dict rỗng
         
@@ -200,36 +209,41 @@ class InsightForm(forms.ModelForm):
             return parsed_metrics
         except json.JSONDecodeError as e:
             raise forms.ValidationError(f"Invalid JSON format: {e}")
-
+    
     def save(self, commit=True):
         instance = super().save(commit=False)
+        
         # Xử lý metrics HOÀN TOÀN THỦ CÔNG
         metrics_data = self.cleaned_data.get('metrics_json', {})
         print(f"DEBUG - Saving metrics: {metrics_data}")  # Debug
+        
         # Gán trực tiếp - đây là điểm quan trọng
         instance.metrics = metrics_data
         
         if commit:
             instance.save()
-        # Debug: kiểm tra sau khi save
-        refreshed = Insight.objects.get(pk=instance.pk)
-        print(f"DEBUG - After save, DB has: {refreshed.metrics}")
+            # Debug: kiểm tra sau khi save
+            refreshed = Insight.objects.get(pk=instance.pk)
+            print(f"DEBUG - After save, DB has: {refreshed.metrics}")
+        
         return instance
-
+    
     def clean(self):
         cleaned_data = super().clean()
+        
         # Validation cho file upload
         attached_file = cleaned_data.get('attached_file')
         attached_image = cleaned_data.get('attached_image')
-
+        
         if attached_file and attached_image:
             raise forms.ValidationError("Chỉ có thể upload một file hoặc một ảnh, không upload cả hai.")
-
+        
         max_size = 5 * 1024 * 1024
         if attached_file and attached_file.size > max_size:
             raise forms.ValidationError("File quá lớn. Kích thước tối đa là 5MB.")
         if attached_image and attached_image.size > max_size:
             raise forms.ValidationError("Ảnh quá lớn. Kích thước tối đa là 5MB.")
+        
         return cleaned_data
 
 class InsightSearchForm(forms.Form):
