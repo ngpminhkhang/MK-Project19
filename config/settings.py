@@ -28,9 +28,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-h8a$#1$rg)-n@4uqhcykr6ck6^x1fpun)+f3n+gj6o4x7qp88t'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'  # False cho production
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'  # Set True tạm để debug nếu cần
 
-ALLOWED_HOSTS = ['minhkhangportfolio.com', 'www.minhkhangportfolio.com', '*.onrender.com', 'localhost', '127.0.0.1']  # Cập nhật cho domain custom
+ALLOWED_HOSTS = ['*', 'minhkhangportfolio.com', 'www.minhkhangportfolio.com', 'mkproject-1-5zai.onrender.com', '.onrender.com']  # Add explicit để fix DisallowedHost
 
 # Application definition
 
@@ -40,9 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'cloudinary_storage',  # Thêm cho Cloudinary media storage (phải trước staticfiles)
+    # 'cloudinary_storage',  # Uncomment nếu dùng Cloudinary, add trước staticfiles
     'django.contrib.staticfiles',
-    'cloudinary',  # Thêm cho Cloudinary SDK
+    # 'cloudinary',  # Uncomment nếu dùng
     'finance_dashboard',
     'widget_tweaks',
 ]
@@ -82,12 +82,17 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 if 'DATABASE_URL' in os.environ:
-    # Production (Neon via Render env)
+    # Production (Neon)
     DATABASES = {
         'default': dj_database_url.config(
             conn_max_age=600,
-            ssl_require=True  # Bắt buộc cho Neon
+            ssl_require=True,
         )
+    }
+    # Add OPTIONS cho Neon SNI nếu lỗi connect (thay your_endpoint_id bằng ep-xxx từ Neon hostname)
+    DATABASES['default']['OPTIONS'] = {
+        'sslmode': 'require',
+        'options': '-c endpoint=your_endpoint_id'
     }
 else:
     # Local (SQLite)
@@ -141,20 +146,10 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Media files (User uploaded files) - Sử dụng Cloudinary
-MEDIA_URL = '/media/'  # Giữ nguyên để URLs đẹp
-
-# Không cần MEDIA_ROOT vì Cloudinary handle remote storage
-# MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Comment hoặc xóa
-
-# Cấu hình Cloudinary (package sẽ parse từ env CLOUDINARY_URL)
-# Nếu muốn manual, uncomment và set từ env:
-# CLOUDINARY_STORAGE = {
-#     'CLOUD_NAME': os.getenv('CLOUD_NAME'),
-#     'API_KEY': os.getenv('API_KEY'),
-#     'API_SECRET': os.getenv('API_SECRET'),
-# }
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+# Media files (User uploaded files)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Nếu dùng Cloudinary, xóa và uncomment dưới
+# DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'  # Uncomment nếu dùng
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
