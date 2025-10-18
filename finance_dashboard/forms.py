@@ -3,7 +3,7 @@ import json
 from .models import Portfolio, Trade, Insight
 from finance_dashboard.models import ForexPair
 
-# ===================== Phase 2 ================================
+# --- Phase 2 ---
 
 FOREX_CHOICES = [
     ("EURUSD=X", "EUR/USD"),
@@ -114,8 +114,8 @@ class TradeForm(forms.ModelForm):
             else:
                 # Fallback nếu chưa có data
                 return [
-                    ('EURUSD', 'EUR/USD'), ('GBPUSD', 'GBP/USD'), ('USDJPY', 'USD/JPY'), 
-                    ('AUDUSD', 'AUD/USD'), ('USDCAD', 'USD/CAD'), ('USDCHF', 'USD/CHF'), 
+                    ('EURUSD', 'EUR/USD'), ('GBPUSD', 'GBP/USD'), ('USDJPY', 'USD/JPY'),
+                    ('AUDUSD', 'AUD/USD'), ('USDCAD', 'USD/CAD'), ('USDCHF', 'USD/CHF'),
                     ('NZDUSD', 'NZD/USD'),
                 ]
         elif category == 'stock':
@@ -142,40 +142,55 @@ class PortfolioForm(forms.ModelForm):
         fields = ["name", "category", "symbol", "amount"]
 
 class InsightForm(forms.ModelForm):
-    # THÊM FIELD CHO METRICS DẠNG TEXTAREA NHƯNG CÓ VALIDATION
     metrics_json = forms.CharField(
         required=False,
-        widget=forms.Textarea(attrs={'rows': 2, 'placeholder': '{"key": "value"} - Enter valid JSON or leave empty'}),
+        widget=forms.Textarea(attrs={
+            'rows': 2, 
+            'placeholder': '{"key": "value"} - Enter valid JSON or leave empty',
+            'class': 'form-control'
+        }),
         label='Metrics (JSON)'
     )
     
     class Meta:
         model = Insight
+        # LOẠI BỎ HOÀN TOÀN field metrics khỏi form
         fields = [
             'title', 'summary', 'category', 'result',
-            'reason', 'analysis', 'lessons', 'metrics',
-            'attached_file', 'attached_image'  # THÊM FIELD FILE
+            'reason', 'analysis', 'lessons',
+            'attached_file', 'attached_image'
         ]
         widgets = {
-            'metrics': forms.HiddenInput(),  # Ẩn field metrics gốc
-            'summary': forms.Textarea(attrs={'rows': 2}),
-            'reason': forms.Textarea(attrs={'rows': 3}),
-            'analysis': forms.Textarea(attrs={'rows': 3}),
-            'lessons': forms.Textarea(attrs={'rows': 2}),
-            # THÊM WIDGET CHO FILE UPLOAD
+            'summary': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+            'reason': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'analysis': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'lessons': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
             'attached_file': forms.FileInput(attrs={'class': 'form-control'}),
             'attached_image': forms.FileInput(attrs={'class': 'form-control'}),
+            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'category': forms.Select(attrs={'class': 'form-control'}),
+            'result': forms.Select(attrs={'class': 'form-control'}),
         }
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Điền dữ liệu JSON vào metrics_json nếu có
-        if self.instance and self.instance.metrics:
+        # Điền dữ liệu JSON vào metrics_json
+        if self.instance and self.instance.pk:
+            # Refresh instance từ database để đảm bảo có dữ liệu mới nhất
             try:
-                self.fields['metrics_json'].initial = json.dumps(self.instance.metrics, indent=2)
-            except:
-                self.fields['metrics_json'].initial = str(self.instance.metrics)
+                refreshed_instance = Insight.objects.get(pk=self.instance.pk)
+                if refreshed_instance.metrics:
+                    self.fields['metrics_json'].initial = json.dumps(
+                        refreshed_instance.metrics, 
+                        indent=2, 
+                        ensure_ascii=False
+                    )
+                else:
+                    self.fields['metrics_json'].initial = ''
+            except Exception as e:
+                print(f"Error loading metrics: {e}")
+                self.fields['metrics_json'].initial = ''
         
         for field in self.fields:
             self.fields[field].required = False
@@ -185,31 +200,45 @@ class InsightForm(forms.ModelForm):
         metrics_json = self.cleaned_data.get('metrics_json', '').strip()
         
         if not metrics_json:
-            return None
+            return {}  # Trả về dict rỗng
         
         try:
-            # Thử parse JSON
             parsed_metrics = json.loads(metrics_json)
+            if not isinstance(parsed_metrics, dict):
+                raise forms.ValidationError("JSON must be a dictionary (object)")
             return parsed_metrics
         except json.JSONDecodeError as e:
             raise forms.ValidationError(f"Invalid JSON format: {e}")
     
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        # Xử lý metrics HOÀN TOÀN THỦ CÔNG
+        metrics_data = self.cleaned_data.get('metrics_json', {})
+        print(f"DEBUG - Saving metrics: {metrics_data}")  # Debug
+        
+        # Gán trực tiếp - đây là điểm quan trọng
+        instance.metrics = metrics_data
+        
+        if commit:
+            instance.save()
+            # Debug: kiểm tra sau khi save
+            refreshed = Insight.objects.get(pk=instance.pk)
+            print(f"DEBUG - After save, DB has: {refreshed.metrics}")
+        
+        return instance
+    
     def clean(self):
         cleaned_data = super().clean()
         
-        # Gán metrics đã parsed vào field metrics
-        metrics_json = cleaned_data.get('metrics_json')
-        if metrics_json is not None:
-            cleaned_data['metrics'] = metrics_json
-        
-        # Validation cho file upload (giữ nguyên)
+        # Validation cho file upload
         attached_file = cleaned_data.get('attached_file')
         attached_image = cleaned_data.get('attached_image')
         
         if attached_file and attached_image:
             raise forms.ValidationError("Chỉ có thể upload một file hoặc một ảnh, không upload cả hai.")
         
-        max_size = 5 * 1024 * 1024  # 5MB
+        max_size = 5 * 1024 * 1024
         if attached_file and attached_file.size > max_size:
             raise forms.ValidationError("File quá lớn. Kích thước tối đa là 5MB.")
         if attached_image and attached_image.size > max_size:

@@ -1245,3 +1245,4 @@ def portfolio_view(request):
         # ... other context
     }
     return render(request, 'portfolio.html', context)
+
