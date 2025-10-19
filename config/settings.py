@@ -25,6 +25,10 @@ INSTALLED_APPS = [
     "widget_tweaks",
 ]
 
+# Nếu có Cloudinary_URL → dùng Cloudinary cho media
+if os.getenv("CLOUDINARY_URL"):
+    INSTALLED_APPS += ["cloudinary", "cloudinary_storage"]
+
 # Middleware
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -97,10 +101,15 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-# Nếu có Cloudinary_URL → dùng Cloudinary cho media
+# Nếu có Cloudinary_URL → override MEDIA storage
 if os.getenv("CLOUDINARY_URL"):
-    INSTALLED_APPS += ["cloudinary", "cloudinary_storage"]
     DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": os.getenv("CLOUDINARY_CLOUD_NAME"),
+        "API_KEY": os.getenv("CLOUDINARY_API_KEY"),
+        "API_SECRET": os.getenv("CLOUDINARY_API_SECRET"),
+    }
 
 # Default PK
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
