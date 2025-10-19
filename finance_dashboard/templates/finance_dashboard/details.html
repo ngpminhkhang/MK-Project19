@@ -1,7 +1,8 @@
 {% extends "finance_dashboard/base.html" %}
+
 {% load static %}
 
-{% block title %}{{ label }} - Details{% endblock %}
+{% block title %}{{ symbol }} - Details{% endblock %}
 
 {% block content %}
 
@@ -10,42 +11,42 @@
 <!-- Container để load modal insight chi tiết -->
 <div id="insight-modal-container"></div>
 
-<h4 class="mb-3">{{ label }} {{ symbol }}</h4>
+<h4 class="mb-3">Details for {{ symbol }}</h4>
 
 <div class="row g-2">
 
-    <!-- Price Chart -->
-    <div class="col-md-8">
-        <div class="card shadow-sm">
-            <div class="card-header">Price Chart</div>
-            <div class="card-body">
-                {% if labels and values %}
-                    <canvas id="chart_{{ safe_id }}" height="300"></canvas>
-                {% else %}
-                    <p class="text-muted">No price data available.</p>
-                {% endif %}
-            </div>
+<!-- Price Chart -->
+<div class="col-md-8">
+    <div class="card shadow-sm">
+        <div class="card-header">Price Chart</div>
+        <div class="card-body">
+            {% if labels and values %}
+            <canvas id="chart_{{ safe_id }}" height="300"></canvas>
+            {% else %}
+            <p class="text-muted">No price data available.</p>
+            {% endif %}
         </div>
     </div>
+</div>
 
-    <!-- Key Metrics -->
-    <div class="col-md-4">
-        <div class="card shadow-sm">
-            <div class="card-header">Key Metrics</div>
-            <ul class="list-group list-group-flush">
-                {% if metrics %}
-                    {% for k,v in metrics.items %}
-                        <li class="list-group-item d-flex justify-content-between">
-                            <span>{{ k }}</span>
-                            <span>{{ v }}</span>
-                        </li>
-                    {% endfor %}
-                {% else %}
-                    <li class="list-group-item text-muted">No metrics available</li>
-                {% endif %}
-            </ul>
-        </div>
+<!-- Key Metrics -->
+<div class="col-md-4">
+    <div class="card shadow-sm">
+        <div class="card-header">Key Metrics</div>
+        <ul class="list-group list-group-flush">
+            {% if metrics %}
+            {% for k,v in metrics.items %}
+            <li class="list-group-item d-flex justify-content-between">
+                <span>{{ k }}</span>
+                <span>{{ v }}</span>
+            </li>
+            {% endfor %}
+            {% else %}
+            <li class="list-group-item text-muted">No metrics available</li>
+            {% endif %}
+        </ul>
     </div>
+</div>
 </div>
 
 <!-- Trades List -->
@@ -67,7 +68,7 @@
                             <th class="text-sm">Exit</th>
                             <th class="text-sm">PnL</th>
                             <th class="text-sm">Type</th>
-                            <th class="text-sm">Ref/Insight</th>
+                            <th class="text-sm">Ref/Insights</th>
                             <th class="text-sm">Actions</th>
                         </tr>
                     </thead>
@@ -86,33 +87,33 @@
                             <td class="text-sm">
                                 {% if trade.ref %}
                                     {% if 'Insight #' in trade.ref %}
-                                        <a href="{% url 'insight_modal' trade.ref|cut:'Insight #' %}"
-                                           hx-get="{% url 'insight_modal' trade.ref|cut:'Insight #' %}"
-                                           hx-target="#insight-modal-container"
-                                           hx-swap="innerHTML"
-                                           class="text-decoration-none text-info">
-                                            {{ trade.ref }}
-                                        </a>
+                                    <a href="{% url 'insight_model' trade.ref|cut:'Insight #' %}"
+                                    hx-get="{% url 'insight_model' trade.ref|cut:'Insight #' %}"
+                                    hx-target="#insight-modal-container"
+                                    hx-swap="innerHTML"
+                                    class="text-decoration-none text-info">
+                                        {{ trade.ref }}
+                                    </a>
                                     {% else %}
-                                        <span class="text-info">{{ trade.ref }}</span>
+                                    <span class="text-info">{{ trade.ref }}</span>
                                     {% endif %}
                                 {% else %}
-                                    <span class="text-muted"></span>
+                                <span class="text-muted">-</span>
                                 {% endif %}
                             </td>
                             <td class="text-sm">
                                 <form method="POST" action="{% url 'delete_trade' trade.id %}" class="d-inline">
                                     {% csrf_token %}
                                     <button type="submit"
-                                            class="btn btn-sm btn-outline-danger"
-                                            onclick="return confirm('Are you sure you want to delete this trade?')">
+                                    class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('Are you sure you want to delete this trade?')">
                                         Delete
                                     </button>
                                 </form>
                             </td>
                         </tr>
                         {% empty %}
-                            <tr><td colspan="9" class="text-center text-muted">No trades found for this symbol.</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted">No trades found for this symbol.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
