@@ -28,13 +28,13 @@
     hx-get="{% url 'create_insight' %}"
     hx-target="#create-insight-modal-container"
     hx-swap="innerHTML">
-<i class="fas fa-plus me-1"></i> Create Insight
+    <i class="fas fa-plus me-1"></i> Create Insight
 </button>
 
 <!-- Search Form -->
 <form method="GET" class="d-flex">
 <div class="input-group input-group-sm">
-<input type="text" name="q" class="form-control" placeholder="Search insights..." value="{{ request.GET.q }}">
+<input type="text" name="q" class="form-control" placeholder="Search Insights..." value="{{request.GET.q }}">
 <button class="btn btn-outline-secondary" type="submit">Search</button>
 </div>
 </form>
@@ -45,21 +45,25 @@
 <div class="card-header py-2">
 <div class="d-flex flex-wrap">
 <a class="btn btn-sm btn-outline-secondary me-1 mb-1 {% if not request.GET.category %}active{% endif %}"
-href="/?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}category=All">
+href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}category=All">
 All
 </a>
+
 <a class="btn btn-sm btn-outline-primary me-1 mb-1 {% if request.GET.category == 'currency' %}active{% endif %}"
-href="/?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}category=currency">
+href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}category=currency">
 Currency
 </a>
+
 <a class="btn btn-sm btn-outline-info me-1 mb-1 {% if request.GET.category == 'stock' %}active{% endif %}"
-href="/?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}category=stock">
+href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}category=stock">
 Stock
 </a>
+
 <a class="btn btn-sm btn-outline-warning me-1 mb-1 {% if request.GET.category == 'summary' %}active{% endif %}"
 href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}category=summary">
 Summary
 </a>
+
 <a class="btn btn-sm btn-outline-dark me-1 mb-1 {% if request.GET.category == 'other' %}active{% endif %}"
 href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}category=other">
 Other
@@ -88,16 +92,13 @@ Other
 </span>
 {% endif %}
 </div>
-
 <p class="card-text text-muted small">{{ insight.summary | truncatechars:100 }}</p>
-
 <div class="d-flex justify-content-between align-items-center">
 <small class="text-muted">{{ insight.date | date:"M d, Y" }}</small>
 <span class="badge {% if insight.result == 'positive' %}bg-success{% elif insight.result == 'negative' %}bg-danger{% else %}bg-secondary{% endif %}">
 {{ insight.get_result_display }}
 </span>
 </div>
-
 <!-- THÊM THÔNG TIN FILE -->
 {% if insight.has_attachment %}
 <div class="mt-2">
@@ -108,10 +109,11 @@ Other
 </div>
 {% endif %}
 </div>
+
 <div class="card-footer bg-transparent">
 <div class="d-flex justify-content-between align-items-center">
 <button class="btn btn-sm btn-outline-primary view-insight-btn"
-hx-get="{% url 'insight_modal' insight.pk %}"
+hx-get="{% url 'insight_model' insight.pk %}"
 hx-target="#insight-modal-container"
 hx-swap="innerHTML">
 <i class="fas fa-eye me-1"></i> View
@@ -127,7 +129,7 @@ title="Edit Insight">
 </button>
 <!-- Nút Delete -->
 <button class="btn btn-sm btn-outline-danger delete-insight-btn"
-onclick="confirmDelete({{ insight.pk }}, '{{ insight.title|escapejs }}')"
+onclick="confirmDelete({{ insight.pk }}, '{{ insight.title | escapejs }}')"
 title="Delete Insight">
 <i class="fas fa-trash me-1"></i> Delete
 </button>
@@ -160,13 +162,11 @@ hx-swap="innerHTML">
 <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">Previous</a>
 </li>
 {% endif %}
-
 {% for num in page_obj.paginator.page_range %}
 <li class="page-item {% if page_obj.number == num %}active{% endif %}">
 <a class="page-link" href="?page={{ num }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">{{ num }}</a>
 </li>
 {% endfor %}
-
 {% if page_obj.has_next %}
 <li class="page-item">
 <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">Next</a>
@@ -183,110 +183,106 @@ hx-swap="innerHTML">
 <!-- JavaScript xử lý modal -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-// Xử lý khi click view insight
-document.querySelectorAll('.view-insight-btn').forEach(btn => {
-btn.addEventListener('click', function() {
-setTimeout(() => {
-const modalElement = document.getElementById('insightModal');
-if (modalElement) {
-const modal = new bootstrap.Modal(modalElement);
-modal.show();
-}
-}, 100);
-});
-});
-
-// Xử lý khi click edit insight
-document.querySelectorAll('.edit-insight-btn').forEach(btn => {
-btn.addEventListener('click', function() {
-setTimeout(() => {
-const modalElement = document.getElementById('editInsightModal');
-if (modalElement) {
-const modal = new bootstrap.Modal(modalElement);
-modal.show();
-}
-}, 100);
-});
-});
-
-// Xử lý khi click create insight
-document.querySelectorAll('.create-insight-btn').forEach(btn => {
-btn.addEventListener('click', function() {
-setTimeout(() => {
-const modalElement = document.getElementById('createInsightModal');
-if (modalElement) {
-const modal = new bootstrap.Modal(modalElement);
-modal.show();
-}
-}, 100);
-});
-});
-
-// Xử lý sự kiện khi HTMX hoàn thành request
-document.body.addEventListener('htmx:afterSwap', function(evt) {
-    console.log('HTMX afterSwap event:', evt.detail.target.id);
-    
-    // Thêm delay để đảm bảo DOM đã được render hoàn toàn
-    setTimeout(() => {
-        if (evt.detail.target.id === 'insight-modal-container') {
-            const modalElement = document.getElementById('insightModal');
-            if (modalElement) {
-                const modal = new bootstrap.Modal(modalElement);
-                modal.show();
-            }
-        }
-        
-        if (evt.detail.target.id === 'edit-insight-modal-container') {
-            console.log('Edit modal content loaded, showing modal...');
-            const modalElement = document.getElementById('editInsightModal');
-            if (modalElement) {
-                const modal = new bootstrap.Modal(modalElement);
-                modal.show();
-                
-                // Thêm event listener cho form submit
-                const form = modalElement.querySelector('form');
-                if (form) {
-                    form.addEventListener('submit', function(e) {
-                        // Hiển thị loading state
-                        const submitBtn = form.querySelector('button[type="submit"]');
-                        if (submitBtn) {
-                            submitBtn.disabled = true;
-                            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
-                        }
-                    });
+    // Xử lý khi click view insight
+    document.querySelectorAll('.view-insight-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            setTimeout(() => {
+                const modalElement = document.getElementById('insightModal');
+                if (modalElement) {
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
                 }
-            } else {
-                console.error('Edit modal element not found!');
-            }
-        }
-        
-        if (evt.detail.target.id === 'create-insight-modal-container') {
-            console.log('Create modal content loaded, showing modal...');
-            const modalElement = document.getElementById('createInsightModal');
-            if (modalElement) {
-                const modal = new bootstrap.Modal(modalElement);
-                modal.show();
-            } else {
-                console.error('Create modal element not found!');
-            }
-        }
-    }, 100);
-});
+            }, 100);
+        });
+    });
 
-// Xử lý khi modal đóng
-document.body.addEventListener('hidden.bs.modal', function() {
-    // Clear modal containers khi modal đóng
-    document.getElementById('insight-modal-container').innerHTML = '';
-    document.getElementById('edit-insight-modal-container').innerHTML = '';
-    document.getElementById('create-insight-modal-container').innerHTML = '';
-});
+    // Xử lý khi click edit insight
+    document.querySelectorAll('.edit-insight-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            setTimeout(() => {
+                const modalElement = document.getElementById('editInsightModal');
+                if (modalElement) {
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+                }
+            }, 100);
+        });
+    });
+
+    // Xử lý khi click create insight
+    document.querySelectorAll('.create-insight-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            setTimeout(() => {
+                const modalElement = document.getElementById('createInsightModal');
+                if (modalElement) {
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+                }
+            }, 100);
+        });
+    });
+
+    // Xử lý sự kiện khi HTMX hoàn thành request
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        console.log('HTMX afterSwap event:', evt.detail.target.id);
+        // Thêm delay để đảm bảo DOM đã được render hoàn toàn
+        setTimeout(() => {
+            if (evt.detail.target.id === 'insight-modal-container') {
+                const modalElement = document.getElementById('insightModal');
+                if (modalElement) {
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+                }
+            }
+            if (evt.detail.target.id === 'edit-insight-modal-container') {
+                console.log('Edit modal content loaded, showing modal...');
+                const modalElement = document.getElementById('editInsightModal');
+                if (modalElement) {
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+                    // Thêm event listener cho form submit
+                    const form = modalElement.querySelector('form');
+                    if (form) {
+                        form.addEventListener('submit', function(e) {
+                            // Hiển thị loading state
+                            const submitBtn = form.querySelector('button[type="submit"]');
+                            if (submitBtn) {
+                                submitBtn.disabled = true;
+                                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+                            }
+                        });
+                    }
+                } else {
+                    console.error('Edit modal element not found!');
+                }
+            }
+            if (evt.detail.target.id === 'create-insight-modal-container') {
+                console.log('Create modal content loaded, showing modal...');
+                const modalElement = document.getElementById('createInsightModal');
+                if (modalElement) {
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+                } else {
+                    console.error('Create modal element not found!');
+                }
+            }
+        }, 100);
+    });
+
+    // Xử lý khi modal đóng
+    document.body.addEventListener('hidden.bs.modal', function() {
+        // Clear modal containers khi modal đóng
+        document.getElementById('insight-modal-container').innerHTML = '';
+        document.getElementById('edit-insight-modal-container').innerHTML = '';
+        document.getElementById('create-insight-modal-container').innerHTML = '';
+    });
 });
 
 // Hàm xác nhận xóa insight
 function confirmDelete(insightId, insightTitle) {
     if (confirm('Are you sure you want to delete "' + insightTitle + '"? This action cannot be undone.')) {
         // SỬA URL CHO ĐÚNG PATTERN
-        fetch('/insight/delete/' + insightId + '/', {  // SỬA: insights/delete -> insight/delete
+        fetch('/insight/delete/' + insightId + '/', { // SỬA: insights/delete -> insight/delete
             method: 'POST',
             headers: {
                 'X-CSRFToken': '{{ csrf_token }}',
@@ -309,18 +305,17 @@ function confirmDelete(insightId, insightTitle) {
                 }
                 // Hiển thị thông báo thành công
                 showNotification('Insight deleted successfully!', 'success');
-                
                 // Nếu không còn insight nào, hiển thị empty state
-                if (document.querySelectorAll('.insight-card').length === 0) {
+                if (document.querySelectorAll('.insight-card').length == 0) {
                     location.reload();
                 }
             } else {
-                alert('Error deleting insight: ' + (data.error || 'Unknown error'));
+                alert('Error deleting insight: '+ (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Error deleting insight: ' + error.message);
+            alert('Error deleting insight: '+ error.message);
         });
     }
 }
@@ -338,7 +333,6 @@ function showNotification(message, type = 'info') {
     notification.style.right = '20px';
     notification.style.zIndex = '9999';
     document.body.appendChild(notification);
-    
     setTimeout(() => {
         if (notification.parentNode) {
             notification.remove();
