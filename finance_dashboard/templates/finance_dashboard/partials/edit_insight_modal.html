@@ -59,20 +59,10 @@
                         <label class="form-label">Current Attachment</label>
                         <div class="border p-2 rounded bg-light">
                             {% if insight.is_image %}
-                                {% if insight.attached_image %}
-                                    <img src="{{ insight.attached_image.url }}" 
-                                         alt="Current image" 
-                                         style="max-width: 200px; max-height: 150px;"
-                                         class="img-fluid rounded"
-                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                                    <div style="display: none;" class="alert alert-warning">
-                                        <i class="fas fa-exclamation-triangle"></i> Image not available
-                                    </div>
-                                {% else %}
-                                    <div class="alert alert-warning">
-                                        <i class="fas fa-exclamation-triangle"></i> Image not available
-                                    </div>
-                                {% endif %}
+                                <img src="{{ insight.attached_image.url }}" 
+                                     alt="Current image" 
+                                     style="max-width: 200px; max-height: 150px;"
+                                     class="img-fluid rounded">
                                 <div class="mt-1">
                                     <small class="text-muted">{{ insight.file_name }}</small>
                                 </div>

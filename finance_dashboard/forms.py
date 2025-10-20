@@ -1,9 +1,8 @@
 from django import forms
-import json
 from .models import Portfolio, Trade, Insight
 from finance_dashboard.models import ForexPair
 
-# --- Phase 2 ---
+# ===================== Phase 2 ================================
 
 FOREX_CHOICES = [
     ("EURUSD=X", "EUR/USD"),
@@ -29,8 +28,9 @@ class WatchlistFilterForm(forms.Form):
         choices=FOREX_CHOICES,
         initial=["EURUSD=X", "GBPUSD=X", "USDJPY=X"],
         widget=forms.CheckboxSelectMultiple,
-        label="Chọn cặp Forex"
+        label="Chon c3p Forex"
     )
+    
     interval = forms.ChoiceField(
         choices=INTERVAL_CHOICES,
         initial="1d",
@@ -81,7 +81,7 @@ class TradeForm(forms.ModelForm):
 
     class Meta:
         model = Trade
-        # LOẠI BỎ 'ref' khỏi fields
+        # LOAI BỔ 'ref' khỏi fields
         fields = ['portfolio', 'symbol', 'side', 'entry', 'exit', 'stoploss', 'qty', 'date', 'trade_type', 'notes']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control form-control-sm'}),
@@ -93,7 +93,7 @@ class TradeForm(forms.ModelForm):
             'stoploss': forms.NumberInput(attrs={'class': 'form-control form-control-sm', 'step': '0.00001'}),
             'qty': forms.NumberInput(attrs={'class': 'form-control form-control-sm'}),
             'trade_type': forms.Select(attrs={'class': 'form-control form-control-sm'}),
-            # LOẠI BỎ widget cho 'ref'
+            # LOAI BÖ widget cho 'ref'
         }
 
     def __init__(self, *args, user=None, **kwargs):
@@ -101,21 +101,25 @@ class TradeForm(forms.ModelForm):
         if user:
             self.fields['portfolio'].queryset = Portfolio.objects.filter(user=user)
         
-        # Set initial choices for symbol based on category - LẤY TỪ DATABASE
+        # Set initial choices for symbol based on category - LÄY TÜ DATABASE
         self.fields['symbol'].choices = self.get_symbol_choices('currency')
 
     def get_symbol_choices(self, category):
-        """Get symbol choices based on category - LẤY TỪ DATABASE"""
+        """Get symbol choices based on category - LÄY TÜ DATABASE"""
         if category == 'currency':
-            # LẤY FOREX PAIRS TỪ DATABASE THAY VÌ HARD-CODED
+            # LÄY FOREX PAIRS TÜ DATABASE THAY VÌ HARD-CODED
             forex_pairs = ForexPair.objects.all().order_by('pair')
             if forex_pairs.exists():
                 return [[pair.pair, pair.pair] for pair in forex_pairs]
             else:
                 # Fallback nếu chưa có data
                 return [
-                    ('EURUSD', 'EUR/USD'), ('GBPUSD', 'GBP/USD'), ('USDJPY', 'USD/JPY'),
-                    ('AUDUSD', 'AUD/USD'), ('USDCAD', 'USD/CAD'), ('USDCHF', 'USD/CHF'),
+                    ('EURUSD', 'EUR/USD'),
+                    ('GBPUSD', 'GBP/USD'),
+                    ('USDJPY', 'USD/JPY'),
+                    ('AUDUSD', 'AUD/USD'),
+                    ('USDCAD', 'USD/CAD'),
+                    ('USDCHF', 'USD/CHF'),
                     ('NZDUSD', 'NZD/USD'),
                 ]
         elif category == 'stock':
@@ -142,103 +146,41 @@ class PortfolioForm(forms.ModelForm):
         fields = ["name", "category", "symbol", "amount"]
 
 class InsightForm(forms.ModelForm):
-    metrics_json = forms.CharField(
-        required=False,
-        widget=forms.Textarea(attrs={
-            'rows': 2, 
-            'placeholder': '{"key": "value"} - Enter valid JSON or leave empty',
-            'class': 'form-control'
-        }),
-        label='Metrics (JSON)'
-    )
-    
     class Meta:
         model = Insight
-        # LOẠI BỎ HOÀN TOÀN field metrics khỏi form
         fields = [
             'title', 'summary', 'category', 'result',
-            'reason', 'analysis', 'lessons',
-            'attached_file', 'attached_image'
+            'reason', 'analysis', 'lessons', 'metrics',
+            'attached_file', 'attached_image'  # THÊM FIELD FILE
         ]
         widgets = {
-            'summary': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
-            'reason': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
-            'analysis': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
-            'lessons': forms.Textarea(attrs={'rows': 2, 'class': 'form-control'}),
+            'metrics': forms.Textarea(attrs={'rows': 2}),
+            'summary': forms.Textarea(attrs={'rows': 2}),
+            'reason': forms.Textarea(attrs={'rows': 3}),
+            'analysis': forms.Textarea(attrs={'rows': 3}),
+            'lessons': forms.Textarea(attrs={'rows': 2}),
+            # THÊM WIDGET CHO FILE UPLOAD
             'attached_file': forms.FileInput(attrs={'class': 'form-control'}),
             'attached_image': forms.FileInput(attrs={'class': 'form-control'}),
-            'title': forms.TextInput(attrs={'class': 'form-control'}),
-            'category': forms.Select(attrs={'class': 'form-control'}),
-            'result': forms.Select(attrs={'class': 'form-control'}),
         }
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
-        # Điền dữ liệu JSON vào metrics_json
-        if self.instance and self.instance.pk:
-            # Refresh instance từ database để đảm bảo có dữ liệu mới nhất
-            try:
-                refreshed_instance = Insight.objects.get(pk=self.instance.pk)
-                if refreshed_instance.metrics:
-                    self.fields['metrics_json'].initial = json.dumps(
-                        refreshed_instance.metrics, 
-                        indent=2, 
-                        ensure_ascii=False
-                    )
-                else:
-                    self.fields['metrics_json'].initial = ''
-            except Exception as e:
-                print(f"Error loading metrics: {e}")
-                self.fields['metrics_json'].initial = ''
-        
         for field in self.fields:
             self.fields[field].required = False
-    
-    def clean_metrics_json(self):
-        """Validate và parse JSON metrics"""
-        metrics_json = self.cleaned_data.get('metrics_json', '').strip()
-        
-        if not metrics_json:
-            return {}  # Trả về dict rỗng
-        
-        try:
-            parsed_metrics = json.loads(metrics_json)
-            if not isinstance(parsed_metrics, dict):
-                raise forms.ValidationError("JSON must be a dictionary (object)")
-            return parsed_metrics
-        except json.JSONDecodeError as e:
-            raise forms.ValidationError(f"Invalid JSON format: {e}")
-    
-    def save(self, commit=True):
-        instance = super().save(commit=False)
-        
-        # Xử lý metrics HOÀN TOÀN THỦ CÔNG
-        metrics_data = self.cleaned_data.get('metrics_json', {})
-        print(f"DEBUG - Saving metrics: {metrics_data}")  # Debug
-        
-        # Gán trực tiếp - đây là điểm quan trọng
-        instance.metrics = metrics_data
-        
-        if commit:
-            instance.save()
-            # Debug: kiểm tra sau khi save
-            refreshed = Insight.objects.get(pk=instance.pk)
-            print(f"DEBUG - After save, DB has: {refreshed.metrics}")
-        
-        return instance
-    
+
+    # THÊM CLEAN METHOD ĐỂ VALIDATE FILE
     def clean(self):
         cleaned_data = super().clean()
-        
-        # Validation cho file upload
         attached_file = cleaned_data.get('attached_file')
         attached_image = cleaned_data.get('attached_image')
         
+        # Kiểm tra nếu upload cả file và image
         if attached_file and attached_image:
             raise forms.ValidationError("Chỉ có thể upload một file hoặc một ảnh, không upload cả hai.")
         
-        max_size = 5 * 1024 * 1024
+        # Kiểm tra kích thước file (ví dụ: max 5MB)
+        max_size = 5 * 1024 * 1024  # 5MB
         if attached_file and attached_file.size > max_size:
             raise forms.ValidationError("File quá lớn. Kích thước tối đa là 5MB.")
         if attached_image and attached_image.size > max_size:
@@ -258,12 +200,13 @@ class InsightSearchForm(forms.Form):
 # --- Phase 4: Ref/Insight cho Trade ---
 
 class TradeInsightForm(forms.Form):
-    """Form để gán hoặc tạo Insight cho Trade"""
+    """Form dē gān hoặc tạo Insight cho Trade"""
     insight = forms.ModelChoiceField(
         queryset=Insight.objects.all(),
         required=False,
-        label="Chọn Insight có sẵn"
+        label="Chpn Insight có sẵn"
     )
+    
     new_title = forms.CharField(
         max_length=200,
         required=False,
@@ -274,17 +217,17 @@ class TradeInsightForm(forms.Form):
         cleaned_data = super().clean()
         insight = cleaned_data.get("insight")
         new_title = cleaned_data.get("new_title")
-
+        
         if not insight and not new_title:
             raise forms.ValidationError("Bạn phải chọn Insight hoặc nhập tiêu đề mới.")
         return cleaned_data
 
 class TradeFilterForm(forms.Form):
-    """Form để lọc trades theo loại"""
+    """Form dē loc trades theo loa!"""
     trade_type = forms.ChoiceField(
         choices=[("", 'All')] + TRADE_TYPE_CHOICES,
         required=False,
-        label="Filter"
+        label="Filter"  
     )
 
 class GlobalSearchForm(forms.Form):
