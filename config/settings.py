@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 import dj_database_url
 from dotenv import load_dotenv
-import cloudinary  # Thêm import này để config Cloudinary
 
 # Load env
 load_dotenv()
@@ -26,9 +25,11 @@ INSTALLED_APPS = [
     "widget_tweaks",
 ]
 
-# Nếu có Cloudinary credentials → dùng Cloudinary cho media (thay đổi if để check key chính)
-if os.getenv("CLOUDINARY_CLOUD_NAME"):
-    INSTALLED_APPS += ["cloudinary_storage", "cloudinary"]  # Đúng order cho media only (storage sau staticfiles)
+# Nếu có CLOUDINARY_URL → dùng Cloudinary cho media
+if os.getenv("CLOUDINARY_URL"):
+    INSTALLED_APPS += ["cloudinary_storage", "cloudinary"]  # Add storage first for media
+    import cloudinary  # Import chỉ khi cần
+    cloudinary.config(secure=True)  # HTTPS cho URLs
 
 # Middleware
 MIDDLEWARE = [
@@ -102,22 +103,9 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-# Nếu có Cloudinary credentials → override MEDIA storage (thay đổi if tương tự)
-if os.getenv("CLOUDINARY_CLOUD_NAME"):
+# Nếu có CLOUDINARY_URL → override MEDIA storage (package tự parse từ env)
+if os.getenv("CLOUDINARY_URL"):
     DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
-    CLOUDINARY_STORAGE = {
-        "CLOUD_NAME": os.getenv("CLOUDINARY_CLOUD_NAME"),
-        "API_KEY": os.getenv("CLOUDINARY_API_KEY"),
-        "API_SECRET": os.getenv("CLOUDINARY_API_SECRET"),
-        "SECURE": True,  # Thêm để dùng HTTPS, tránh lỗi mixed content
-    }
-    # Config cloudinary global (tùy chọn nhưng tốt cho transformations)
-    cloudinary.config(
-        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-        api_key=os.getenv("CLOUDINARY_API_KEY"),
-        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-        secure=True,
-    )
 
 # Default PK
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
