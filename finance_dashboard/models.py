@@ -1,10 +1,12 @@
 from django.db import models
 from django.contrib.auth.models import User
 from decimal import Decimal
+import os
+from cloudinary_storage.storage import MediaCloudinaryStorage, RawMediaCloudinaryStorage  # Thêm import này cho storage Cloudinary
 
 # --- Phase 2 ---
 class ForexPair(models.Model):
-    pair = models.CharField(max_length=10, unique=True) # Vi du: EURUSD
+    pair = models.CharField(max_length=10, unique=True)  # Vi du: EURUSD
     current_rate = models.DecimalField(max_digits=12, decimal_places=5, null=True)
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -14,7 +16,7 @@ class ForexPair(models.Model):
     class Meta:
         ordering = ["pair"]
         verbose_name_plural = "Forex Pairs"
-    
+
     # THÊM METHOD ĐỂ HIỂN THỊ TÊN ĐẸP HƠN (tùy chọn)
     @property
     def display_name(self):
@@ -24,19 +26,19 @@ class ForexPair(models.Model):
         return self.pair
 
 class MacroData(models.Model):
-    indicator = models.CharField(max_length=50) # Vi du: GDP, Inflation
+    indicator = models.CharField(max_length=50)  # Vi du: GDP, Inflation
     value = models.DecimalField(max_digits=10, decimal_places=2)
     country = models.CharField(max_length=50)
     date = models.DateField()
 
     def __str__(self):
         return f"{self.indicator} - {self.country} - {self.date}"
-    
-    class Meta:
-        ordering = ["date"]  
-        verbose_name_plural = "Macro Data"  
 
-# --- Phase 3 ---  
+    class Meta:
+        ordering = ["date"]
+        verbose_name_plural = "Macro Data"
+
+# --- Phase 3 ---
 class Insight(models.Model):
     CATEGORY_CHOICES = [
         ("currency", "Currency"),
@@ -66,10 +68,20 @@ class Insight(models.Model):
     author = models.CharField(max_length=100, blank=True, null=True)
     slug = models.SlugField(unique=True, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
-    # THÊM FIELD MỚI CHO FILE UPLOAD
-    attached_file = models.FileField(upload_to='insight_attachments/%Y/%m/%d/', blank=True, null=True)
-    attached_image = models.ImageField(upload_to='insight_images/%Y/%m/%d/', blank=True, null=True)
+
+    # THÊM FIELD MỚI CHO FILE UPLOAD (sửa storage conditional để dùng Cloudinary nếu có env)
+    attached_file = models.FileField(
+        upload_to='insight_attachments/%Y/%m/%d/',
+        storage=RawMediaCloudinaryStorage() if os.getenv("CLOUDINARY_CLOUD_NAME") else None,
+        blank=True,
+        null=True
+    )
+    attached_image = models.ImageField(
+        upload_to='insight_images/%Y/%m/%d/',
+        storage=MediaCloudinaryStorage() if os.getenv("CLOUDINARY_CLOUD_NAME") else None,
+        blank=True,
+        null=True
+    )
 
     def __str__(self):
         return self.title
@@ -82,7 +94,7 @@ class Insight(models.Model):
     @property
     def has_attachment(self):
         return bool(self.attached_file or self.attached_image)
-    
+
     @property
     def is_image(self):
         if self.attached_image:
@@ -99,13 +111,6 @@ class Insight(models.Model):
             return self.attached_image.name.split('/')[-1]
         return None
 
-    def __str__(self):
-        return self.title
-
-    class Meta:
-        ordering = ["-date"]  
-        verbose_name_plural = "Insights"
-
 class Portfolio(models.Model):
     CATEGORY_CHOICES = [
         ("currency", "Currency"),
@@ -116,13 +121,13 @@ class Portfolio(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=50)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default="currency")
-    symbol = models.CharField(max_length=20, blank=True, null=True) # EURUSD, AAPL, BTCUSD...
+    symbol = models.CharField(max_length=20, blank=True, null=True)  # EURUSD, AAPL, BTCUSD...
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=10000)
     date_added = models.DateTimeField(auto_now_add=True)
-    
+
     # THÊM FIELD is_public VÀO PORTFOLIO
     is_public = models.BooleanField(default=False)  # Thêm dòng này
-    
+
     # THÊM FIELD ref_insight VÀO PORTFOLIO
     ref_insight = models.ForeignKey(Insight, on_delete=models.SET_NULL, null=True, blank=True, related_name="portfolio_references")
 
@@ -158,9 +163,9 @@ class Trade(models.Model):
     TYPE_CHOICES = [("Live", "Live"), ("Backtest", "Backtest")]
 
     portfolio = models.ForeignKey(Portfolio, on_delete=models.CASCADE, related_name="trades")
-    symbol = models.CharField(max_length=20, blank=True, null=True) # <- dői túr ForeignKey sang CharField
+    symbol = models.CharField(max_length=20, blank=True, null=True)  # <- dői túr ForeignKey sang CharField
     side = models.CharField(max_length=10, choices=SIDE_CHOICES)
-    entry = models.DecimalField(max_digits=12, decimal_places=5) # entry price duy nhất
+    entry = models.DecimalField(max_digits=12, decimal_places=5)  # entry price duy nhất
     exit = models.DecimalField(max_digits=12, decimal_places=5)
     stoploss = models.DecimalField(max_digits=12, decimal_places=5, null=True, blank=True)
     qty = models.IntegerField(default=10000)
@@ -168,7 +173,7 @@ class Trade(models.Model):
     trade_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
     notes = models.TextField(blank=True)
     ref = models.CharField(max_length=50, blank=True)
-    
+
     # THÊM FIELD ref_insight VÀO TRADE
     ref_insight = models.ForeignKey(Insight, on_delete=models.SET_NULL, null=True, blank=True, related_name="trade_references")
 
@@ -188,7 +193,7 @@ class Trade(models.Model):
 
     def __str__(self):
         return f"{self.portfolio.name} - {self.symbol} - {self.side}"
-    
+
     class Meta:
         ordering = ["date"]
         verbose_name_plural = "Trades"
