@@ -477,18 +477,13 @@ def portfolio(request):
         if not portfolios.exists():
             messages.warning(request, "No portfolios found. Please create a portfolio first.")
     else:
-        # CHO KHÁCH: Hiển thị portfolio public với xử lý lỗi
-        try:
-            # Thử filter theo is_public=True
-            portfolios = Portfolio.objects.filter(is_public=True).prefetch_related("trades")
-            if not portfolios.exists():
-                portfolios = Portfolio.objects.none()
-                messages.info(request, "No public portfolios available. Log in to create your own portfolio.")
-        except Exception as e:
-            # Nếu field is_public chưa có, hiển thị thông báo và portfolio rỗng
-            logger.warning(f"is_public field not available: {e}")
+        # CHO KHÁCH: Hiển thị portfolio public
+        portfolios = Portfolio.objects.filter(is_public=True).prefetch_related("trades")
+        if not portfolios.exists():
+            # Nếu không có portfolio public, hiển thị thông báo và tạo portfolio demo
+            messages.info(request, "No public portfolios available. Log in to create your own portfolio.")
+            # Có thể tự động tạo portfolio demo ở đây nếu cần
             portfolios = Portfolio.objects.none()
-            messages.info(request, "Public portfolios feature is not available yet. Please log in to view your portfolios.")
 
     # Xử lý form POST (chỉ cho user đã login)
     if request.method == "POST":
@@ -669,7 +664,7 @@ def create_insight_for_portfolio(request, portfolio_id):
             return redirect("portfolio")
 
         portfolio = get_object_or_404(Portfolio, id=portfolio_id, user=request.user)
-        form = InsightForm(request.POST)
+        form = InsightForm(request.POST, request.FILES)
 
         if form.is_valid():
             insight = form.save(commit=False)
@@ -853,7 +848,7 @@ def trade_insight_modal(request, trade_id):
     existing_insight = trade.portfolio.ref_insight if hasattr(trade.portfolio, "ref_insight") else None
 
     if request.method == "POST":
-        form = InsightForm(request.POST, instance=existing_insight)
+        form = InsightForm(request.POST, request.FILES, instance=existing_insight)
         if form.is_valid():
             insight = form.save(commit=False)
             insight.portfolio_ref = trade.portfolio

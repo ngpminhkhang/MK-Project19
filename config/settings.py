@@ -25,11 +25,21 @@ INSTALLED_APPS = [
     "widget_tweaks",
 ]
 
-# Nếu có CLOUDINARY_URL → dùng Cloudinary cho media
+# Nếu có Cloudinary_URL → dùng Cloudinary cho media
 if os.getenv("CLOUDINARY_URL"):
-    INSTALLED_APPS += ["cloudinary_storage", "cloudinary"]  # Add storage first for media
-    import cloudinary  # Import chỉ khi cần
-    cloudinary.config(secure=True)  # HTTPS cho URLs
+    INSTALLED_APPS += ["cloudinary", "cloudinary_storage"]
+    
+    # Cấu hình Cloudinary cơ bản
+    import cloudinary
+    import cloudinary.uploader
+    import cloudinary.api
+    
+    cloudinary.config(
+        cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+        api_key=os.getenv("CLOUDINARY_API_KEY"),
+        api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+        secure=True
+    )
 
 # Middleware
 MIDDLEWARE = [
@@ -103,9 +113,21 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-# Nếu có CLOUDINARY_URL → override MEDIA storage (package tự parse từ env)
+# Nếu có Cloudinary_URL → override MEDIA storage
 if os.getenv("CLOUDINARY_URL"):
     DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+    
+    # Cấu hình Cloudinary từ CLOUDINARY_URL hoặc từ các biến riêng lẻ
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": os.getenv("CLOUDINARY_CLOUD_NAME"),
+        "API_KEY": os.getenv("CLOUDINARY_API_KEY"), 
+        "API_SECRET": os.getenv("CLOUDINARY_API_SECRET"),
+    }
+    
+    # Đảm bảo MEDIA_URL trỏ đến Cloudinary
+    MEDIA_URL = "https://res.cloudinary.com/{}/image/upload/".format(
+        os.getenv("CLOUDINARY_CLOUD_NAME", "")
+    )
 
 # Default PK
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
