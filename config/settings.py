@@ -27,9 +27,10 @@ INSTALLED_APPS = [
 
 # Nếu có Cloudinary credentials → dùng Cloudinary cho media
 if os.getenv("CLOUDINARY_CLOUD_NAME"):
-    INSTALLED_APPS += ["cloudinary_storage", "cloudinary"]
-    import cloudinary
-    cloudinary.config(secure=True)  # HTTPS cho URLs
+    INSTALLED_APPS += [
+        "cloudinary_storage",
+        "cloudinary",
+    ]
 
 # Middleware
 MIDDLEWARE = [
@@ -109,6 +110,7 @@ if os.getenv("CLOUDINARY_CLOUD_NAME"):
         "CLOUD_NAME": os.getenv("CLOUDINARY_CLOUD_NAME"),
         "API_KEY": os.getenv("CLOUDINARY_API_KEY"),
         "API_SECRET": os.getenv("CLOUDINARY_API_SECRET"),
+        "SECURE": True,
     }
     DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
