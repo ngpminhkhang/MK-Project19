@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'finance_dashboard',
+    'widget_tweaks',
+
 
     # third-party
     'storages',
