@@ -18,3 +18,15 @@ urlpatterns = [
 # Serve media files in development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# config/urls.py - THÊM VÀO CUỐI FILE
+from django.urls import path
+from . import debug_views  # Sẽ tạo file này
+
+urlpatterns = [
+    # ... các URL hiện có ...
+    
+    # Debug URLs - THÊM 2 DÒNG NÀY
+    path('debug/cloudinary/', debug_views.debug_cloudinary, name='debug_cloudinary'),
+    path('debug/database/', debug_views.debug_database, name='debug_database'),
+]
