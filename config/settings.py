@@ -18,29 +18,25 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-h8a$#1$rg)-n@4uqhcykr6ck6^x1fpun)+f3n+gj6o4x7qp88t'
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+ALLOWED_HOSTS = ["*"]
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'  # False cho production
-
-ALLOWED_HOSTS = ["*"]  # Hoặc cụ thể ['mkproject-vits.onrender.com']
-
-# Application definition
-
+# ✅ INSTALLED_APPS ĐÚNG THỨ TỰ - KIỂM TRA KỸ
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',
+    
+    # 🚨 QUAN TRỌNG: cloudinary_storage PHẢI TRÊN staticfiles
+    'cloudinary_storage',  # XỬ LÝ MEDIA FILES - PHẢI ĐỨNG TRƯỚC
+    'django.contrib.staticfiles',  # XỬ LÝ STATIC FILES - PHẢI ĐỨNG SAU
+    
+    'cloudinary',  # CLOUDINARY CORE APP
     'finance_dashboard',
     'widget_tweaks',
 ]
@@ -76,36 +72,47 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database
-# https://docs.djangoproject.com/en/5.0/ref/settings/#databases
-
+# ✅ DATABASE CONFIGURATION - TỐI ƯU CHO NEON
 if 'DATABASE_URL' in os.environ:
-    # Production (Render)
+    # Production (Render + Neon PostgreSQL)
     DATABASES = {
         'default': dj_database_url.config(
             conn_max_age=600,
+            conn_health_checks=True,
             ssl_require=True
         )
     }
+    # BẮT BUỘC SSL VỚI NEON
+    DATABASES['default']['OPTIONS'] = {
+        'sslmode': 'require'
+    }
+    print("✅ Using Neon PostgreSQL database with SSL")
 else:
-    # Local (SQLite)
+    # Local development (SQLite)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+    print("✅ Using local SQLite database")
 
-# Fallback nếu DATABASE_URL không tồn tại
-if 'DATABASE_URL' not in os.environ:
-    DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+# ✅ CLOUDINARY CONFIGURATION - CHO MEDIA FILES (ẢNH, FILE UPLOAD)
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
+    'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
+}
+
+# QUAN TRỌNG: TẤT CẢ MEDIA FILES SẼ DÙNG CLOUDINARY
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# ✅ STATIC FILES CONFIG (CSS, JS, IMAGES) - VẪN DÙNG WHITENOISE
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Password validation
-# https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -122,29 +129,11 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-# https://docs.djangoproject.com/en/5.0/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.0/howto/static-files/
-
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# Media files (User uploaded files)
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Authentication settings
@@ -152,16 +141,15 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/portfolio/'
 LOGOUT_REDIRECT_URL = '/'
 
-# Authentication backends
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
 
 # Session settings
-SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
+SESSION_COOKIE_AGE = 1209600
 SESSION_SAVE_EVERY_REQUEST = True
 
-# API Keys for external services
+# API Keys
 FRED_API_KEY = os.getenv('FRED_API_KEY', 'your_fred_api_key_here')
 
 # Cache configuration
@@ -169,26 +157,16 @@ CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'unique-snowflake',
-        'TIMEOUT': 3600,  # 1 hour default timeout
+        'TIMEOUT': 3600,
         'OPTIONS': {
             'MAX_ENTRIES': 1000,
         }
     }
 }
 
-# AWS S3 Integration for Media Files (User uploads like PNG/JPG)
-# Chỉ áp dụng nếu env vars tồn tại (trên Render production)
-if 'AWS_STORAGE_BUCKET_NAME' in os.environ:
-    print("S3 storage is active!")  # Debug: Check logs Render
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
-    AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
-    AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'ap-southeast-2')  # Default Sydney
-    AWS_S3_FILE_OVERWRITE = False  # Không overwrite file cũ
-    AWS_DEFAULT_ACL = 'public-read'  # File public
-    AWS_S3_SIGNATURE_VERSION = 's3v4'  # Sửa signing để fix delete/upload in some regions
-    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com'
-    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/'  # URL media từ S3
+# ✅ KIỂM TRA CLOUDINARY CONFIG KHI KHỞI ĐỘNG
+if 'CLOUDINARY_CLOUD_NAME' in os.environ:
+    print("✅ Cloudinary configuration loaded successfully")
+    print(f"✅ Cloud Name: {os.environ.get('CLOUDINARY_CLOUD_NAME')}")
 else:
-    print("Using local storage fallback")  # Debug: Nếu env vars sai
+    print("⚠️ Cloudinary environment variables not found - using local media storage fallback")

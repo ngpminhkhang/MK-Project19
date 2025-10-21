@@ -68,8 +68,8 @@ class Insight(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     # THÊM FIELD MỚI CHO FILE UPLOAD
-    attached_file = models.FileField(upload_to='insight_attachments/%Y/%m/%d/', blank=True, null=True)
-    attached_image = models.ImageField(upload_to='insight_images/%Y/%m/%d/', blank=True, null=True)
+    attached_file = models.FileField(blank=True, null=True)  # XÓA upload_to='insight_attachments/%Y/%m/%d/'
+    attached_image = models.ImageField(blank=True, null=True)  # XÓA upload_to='insight_images/%Y/%m/%d/'
 
     def __str__(self):
         return self.title
