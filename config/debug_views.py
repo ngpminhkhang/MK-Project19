@@ -79,3 +79,100 @@ def debug_database(request):
         html += "<p>💡 Cần tạo portfolio với is_public=True</p>"
     
     return HttpResponse(html)
+
+def test_upload(request):
+    """Test upload file lên Cloudinary"""
+    from finance_dashboard.models import Insight
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    
+    html = "<h1>📤 Test Cloudinary Upload</h1>"
+    
+    if request.method == 'POST' and request.FILES.get('test_file'):
+        try:
+            # Tạo insight test
+            insight = Insight(
+                title="Test Upload - " + str(request.FILES['test_file'].name),
+                summary="Test file upload to Cloudinary",
+                category="other",
+                result="neutral"
+            )
+            
+            # Lưu file
+            insight.attached_image = request.FILES['test_file']
+            insight.save()
+            
+            html += f"<p style='color: green;'>✅ Upload THÀNH CÔNG!</p>"
+            html += f"<p>File URL: {insight.attached_image.url}</p>"
+            html += f"<p>File name: {insight.attached_image.name}</p>"
+            
+            # Kiểm tra xem có phải Cloudinary URL không
+            if 'cloudinary.com' in insight.attached_image.url:
+                html += f"<p style='color: green;'>✅ Đang dùng CLOUDINARY storage</p>"
+            else:
+                html += f"<p style='color: red;'>❌ Vẫn dùng LOCAL storage</p>"
+                
+        except Exception as e:
+            html += f"<p style='color: red;'>❌ Upload THẤT BẠI: {e}</p>"
+    
+    # Form upload test
+    html += """
+    <form method="post" enctype="multipart/form-data">
+        <input type="file" name="test_file" required>
+        <button type="submit">Upload Test File</button>
+    </form>
+    <p><small>Upload 1 file ảnh nhỏ để test</small></p>
+    """
+    
+    return HttpResponse(html)
+
+def fix_public_data(request):
+    """Chuyển trades sang portfolio public"""
+    from finance_dashboard.models import Portfolio
+    
+    html = "<h1>🔧 Fix Public Data</h1>"
+    
+    # Lấy portfolio có trades
+    currency_portfolio = Portfolio.objects.get(name="Currency")
+    demo_portfolio = Portfolio.objects.get(name="Demo Portfolio")
+    
+    # Đổi currency thành public
+    currency_portfolio.is_public = True
+    currency_portfolio.save()
+    
+    # Đổi demo thành private (tùy chọn)
+    demo_portfolio.is_public = False  
+    demo_portfolio.save()
+    
+    html += f"<p>✅ Đã đổi '{currency_portfolio.name}' thành public</p>"
+    html += f"<p>✅ Đã đổi '{demo_portfolio.name}' thành private</p>"
+    html += f"<p>Bây giờ khách sẽ thấy: {currency_portfolio.trades.count()} trades</p>"
+    
+    return HttpResponse(html)
+
+def fix_public_data(request):
+    """Chuyển portfolio có trades thành public"""
+    from finance_dashboard.models import Portfolio
+    
+    html = "<h1>🔧 Fix Public Portfolio Data</h1>"
+    
+    try:
+        # Lấy portfolio có trades
+        currency_portfolio = Portfolio.objects.get(name="Currency")
+        demo_portfolio = Portfolio.objects.get(name="Demo Portfolio")
+        
+        # Đổi currency thành public (có trades)
+        currency_portfolio.is_public = True
+        currency_portfolio.save()
+        
+        # Đổi demo thành private (không có trades)
+        demo_portfolio.is_public = False  
+        demo_portfolio.save()
+        
+        html += f"<p style='color: green;'>✅ Đã đổi '{currency_portfolio.name}' thành PUBLIC</p>"
+        html += f"<p style='color: green;'>✅ Đã đổi '{demo_portfolio.name}' thành PRIVATE</p>"
+        html += f"<p>Bây giờ khách sẽ thấy: {currency_portfolio.trades.count()} trades</p>"
+        
+    except Exception as e:
+        html += f"<p style='color: red;'>❌ Lỗi: {e}</p>"
+    
+    return HttpResponse(html)
