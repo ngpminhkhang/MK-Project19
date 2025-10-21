@@ -68,8 +68,8 @@ class Insight(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     
     # THÊM FIELD MỚI CHO FILE UPLOAD
-    attached_file = models.FileField(blank=True, null=True)      # KHÔNG có upload_to
-    attached_image = models.ImageField(blank=True, null=True)    # KHÔNG có upload_to
+    attached_file = models.FileField(upload_to='insight_attachments/%Y/%m/%d/', blank=True, null=True)
+    attached_image = models.ImageField(upload_to='insight_images/%Y/%m/%d/', blank=True, null=True)
 
     def __str__(self):
         return self.title
