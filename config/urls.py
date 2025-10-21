@@ -3,6 +3,7 @@ from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from django.conf.urls.static import static
+from . import debug_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -29,4 +30,7 @@ urlpatterns = [
     # Debug URLs - THÊM 2 DÒNG NÀY
     path('debug/cloudinary/', debug_views.debug_cloudinary, name='debug_cloudinary'),
     path('debug/database/', debug_views.debug_database, name='debug_database'),
+    path('debug/test-upload/', debug_views.test_upload, name='debug_test_upload'),
+    path('debug/fix-data/', debug_views.fix_public_data, name='debug_fix_data'),
+    
 ]
