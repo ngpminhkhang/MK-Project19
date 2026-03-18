@@ -91,5 +91,9 @@ urlpatterns = [
 
     # PART 10: DASHBOARD
     path("api/dashboard/metrics/", api.get_dashboard_metrics, name="api_dashboard_metrics"),
+    
+    # API Endpoints cho React hút máu
+    path('api/config/state/', views.config_state_api, name='api_config_state'),
+    path('api/dashboard/metrics/', views.dashboard_metrics_api, name='api_dashboard_metrics'),
 
 ]

@@ -21,6 +21,7 @@ from django.utils import timezone
 from django.template.loader import render_to_string
 from tenacity import retry, stop_after_attempt, wait_fixed
 import logging
+from django.views.decorators.csrf import csrf_exempt
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -1299,3 +1300,50 @@ def portfolio_view(request):
         # ... other context
     }
     return render(request, 'portfolio.html', context)
+
+# ==========================================
+# INSTITUTIONAL API ENDPOINTS
+# ==========================================
+
+@csrf_exempt
+def config_state_api(request):
+    """ Cổng nhận lệnh bơm tiền và cấu hình từ Bộ Chỉ Huy (React) """
+    if request.method == 'POST':
+        try:
+            # Bóc tách gói hàng từ React gửi tới
+            data = json.loads(request.body)
+            account_id = data.get('accountId')
+            balance = data.get('balance')
+            mode = data.get('mode')
+            
+            # TODO: Sếp gọi các hàm lưu vào Database (SQLite/Neon) ở đây
+            # Ví dụ: Portfolio.objects.filter(id=account_id).update(balance=balance)
+
+            print(f"CEO DIRECTIVE: Bơm {balance} USD vào tài khoản {account_id}. Chế độ: {mode}")
+            
+            # Trả về tín hiệu xanh cho mặt tiền
+            return JsonResponse({"status": "ok", "message": "SYSTEM DIRECTIVE EXECUTED"})
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+def dashboard_metrics_api(request):
+    """ Cổng xuất dữ liệu tình báo cho Bảng Điều Khiển """
+    account_id = request.GET.get('accountId', 1)
+    
+    # TODO: Sếp dùng Python móc dữ liệu thật từ Database ra đây. 
+    # Tạm thời tôi đặt các con số cứng để thông đường ống máu trước.
+    
+    payload = {
+        "balance": 100000,
+        "equity": 99941.90,
+        "win_rate": 33.33,
+        "live_exposure": 1,
+        "floating_pnl": -58.10,
+        "realized_pnl": -11.13,
+        "max_drawdown": 2.00,
+        "execution_protocol": "NORMAL"
+    }
+    
+    return JsonResponse(payload)
