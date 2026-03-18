@@ -1,10 +1,14 @@
 from django.db import models
 from django.contrib.auth.models import User
 from decimal import Decimal
+import uuid
 
-# --- Phase 2 ---
+# ==========================================
+# PHẦN 1: WEBSITE CŨ (GIỮ NGUYÊN KHÔNG ĐỤNG CHẠM)
+# ==========================================
+
 class ForexPair(models.Model):
-    pair = models.CharField(max_length=10, unique=True) # Vi du: EURUSD
+    pair = models.CharField(max_length=10, unique=True)
     current_rate = models.DecimalField(max_digits=12, decimal_places=5, null=True)
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -14,29 +18,26 @@ class ForexPair(models.Model):
     class Meta:
         ordering = ["pair"]
         verbose_name_plural = "Forex Pairs"
-    
-    # THÊM METHOD ĐỂ HIỂN THỊ TÊN ĐẸP HƠN (tùy chọn)
+
     @property
     def display_name(self):
-        """Hiển thị tên đẹp hơn, ví dụ: EURUSD -> EUR/USD"""
         if len(self.pair) == 6:
             return f"{self.pair[:3]}/{self.pair[3:]}"
         return self.pair
 
 class MacroData(models.Model):
-    indicator = models.CharField(max_length=50) # Vi du: GDP, Inflation
+    indicator = models.CharField(max_length=50)
     value = models.DecimalField(max_digits=10, decimal_places=2)
     country = models.CharField(max_length=50)
     date = models.DateField()
 
     def __str__(self):
         return f"{self.indicator} - {self.country} - {self.date}"
-    
-    class Meta:
-        ordering = ["date"]  
-        verbose_name_plural = "Macro Data"  
 
-# --- Phase 3 ---  
+    class Meta:
+        ordering = ["date"]
+        verbose_name_plural = "Macro Data"
+
 class Insight(models.Model):
     CATEGORY_CHOICES = [
         ("currency", "Currency"),
@@ -44,13 +45,11 @@ class Insight(models.Model):
         ("summary", "Summary"),
         ("other", "Other"),
     ]
-
     RESULT_CHOICES = [
         ("positive", "Positive"),
         ("negative", "Negative"),
         ("neutral", "Neutral"),
     ]
-
     title = models.CharField(max_length=200)
     summary = models.TextField()
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default="other")
@@ -66,8 +65,6 @@ class Insight(models.Model):
     author = models.CharField(max_length=100, blank=True, null=True)
     slug = models.SlugField(unique=True, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
-    # THÊM FIELD MỚI CHO FILE UPLOAD
     attached_file = models.FileField(upload_to='insight_attachments/%Y/%m/%d/', blank=True, null=True)
     attached_image = models.ImageField(upload_to='insight_images/%Y/%m/%d/', blank=True, null=True)
 
@@ -78,11 +75,10 @@ class Insight(models.Model):
         ordering = ["-date"]
         verbose_name_plural = "Insights"
 
-    # THÊM PROPERTY ĐỂ KIỂM TRA LOẠI FILE
     @property
     def has_attachment(self):
         return bool(self.attached_file or self.attached_image)
-    
+
     @property
     def is_image(self):
         if self.attached_image:
@@ -99,31 +95,19 @@ class Insight(models.Model):
             return self.attached_image.name.split('/')[-1]
         return None
 
-    def __str__(self):
-        return self.title
-
-    class Meta:
-        ordering = ["-date"]  
-        verbose_name_plural = "Insights"
-
 class Portfolio(models.Model):
     CATEGORY_CHOICES = [
         ("currency", "Currency"),
         ("stock", "Stock"),
         ("other", "Other"),
     ]
-
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=50)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default="currency")
-    symbol = models.CharField(max_length=20, blank=True, null=True) # EURUSD, AAPL, BTCUSD...
+    symbol = models.CharField(max_length=20, blank=True, null=True)
     amount = models.DecimalField(max_digits=12, decimal_places=2, default=10000)
     date_added = models.DateTimeField(auto_now_add=True)
-    
-    # THÊM FIELD is_public VÀO PORTFOLIO
-    is_public = models.BooleanField(default=False)  # Thêm dòng này
-    
-    # THÊM FIELD ref_insight VÀO PORTFOLIO
+    is_public = models.BooleanField(default=False)
     ref_insight = models.ForeignKey(Insight, on_delete=models.SET_NULL, null=True, blank=True, related_name="portfolio_references")
 
     def __str__(self):
@@ -131,22 +115,18 @@ class Portfolio(models.Model):
 
     @property
     def max_drawdown(self):
-        """Tinh Max Drawdown dựa trên equity curve từ trades"""
-        from decimal import Decimal
         trades = self.trades.order_by("date")
         if not trades.exists():
             return 0
-
         equity = Decimal(self.amount)
         peak = equity
         max_dd = Decimal("0")
-
         for t in trades:
             equity += Decimal(str(t.pnl))
             peak = max(peak, equity)
-            dd = (peak - equity) / peak
-            max_dd = max(max_dd, dd)
-
+            if peak > 0:
+                dd = (peak - equity) / peak
+                max_dd = max(max_dd, dd)
         return round(max_dd * 100, 2)
 
     class Meta:
@@ -156,11 +136,10 @@ class Portfolio(models.Model):
 class Trade(models.Model):
     SIDE_CHOICES = [("BUY", "BUY"), ("SELL", "SELL")]
     TYPE_CHOICES = [("Live", "Live"), ("Backtest", "Backtest")]
-
     portfolio = models.ForeignKey(Portfolio, on_delete=models.CASCADE, related_name="trades")
-    symbol = models.CharField(max_length=20, blank=True, null=True) # <- dői túr ForeignKey sang CharField
+    symbol = models.CharField(max_length=20, blank=True, null=True)
     side = models.CharField(max_length=10, choices=SIDE_CHOICES)
-    entry = models.DecimalField(max_digits=12, decimal_places=5) # entry price duy nhất
+    entry = models.DecimalField(max_digits=12, decimal_places=5)
     exit = models.DecimalField(max_digits=12, decimal_places=5)
     stoploss = models.DecimalField(max_digits=12, decimal_places=5, null=True, blank=True)
     qty = models.IntegerField(default=10000)
@@ -168,19 +147,15 @@ class Trade(models.Model):
     trade_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
     notes = models.TextField(blank=True)
     ref = models.CharField(max_length=50, blank=True)
-    
-    # THÊM FIELD ref_insight VÀO TRADE
     ref_insight = models.ForeignKey(Insight, on_delete=models.SET_NULL, null=True, blank=True, related_name="trade_references")
 
     @property
     def pnl(self):
-        """PNL theo entry → exit"""
         direction = Decimal("1") if self.side == "BUY" else Decimal("-1")
         return round(direction * (self.exit - self.entry) * Decimal(self.qty), 2)
 
     @property
     def risk(self):
-        """Ső tiền rủi ro nếu dính stoploss"""
         if not self.stoploss:
             return None
         direction = Decimal("1") if self.side == "BUY" else Decimal("-1")
@@ -188,7 +163,135 @@ class Trade(models.Model):
 
     def __str__(self):
         return f"{self.portfolio.name} - {self.symbol} - {self.side}"
-    
+
     class Meta:
         ordering = ["date"]
         verbose_name_plural = "Trades"
+
+
+# ==========================================
+# PHẦN 2: AUM TERMINAL & QUANT ENGINE 
+# ==========================================
+
+class QuantAccount(models.Model):
+    name = models.CharField(max_length=100)
+    balance = models.FloatField(default=10000.0)
+    currency = models.CharField(max_length=10, default='USD')
+    mql5_path = models.CharField(max_length=500, blank=True, default='')
+    lot_size = models.FloatField(default=100000.0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+class PortfolioSetting(models.Model):
+    max_daily_risk_percent = models.FloatField(default=2.0)
+    max_concurrent_risk_r = models.FloatField(default=5.0)
+    mode = models.CharField(max_length=20, default='NORMAL')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class AccountWeight(models.Model):
+    account = models.OneToOneField(QuantAccount, on_delete=models.CASCADE, primary_key=True)
+    weight_percent = models.FloatField(default=0.0)
+    status = models.CharField(max_length=20, default='NORMAL')
+    last_updated = models.DateTimeField(auto_now=True)
+
+class SystemLibrary(models.Model):
+    category = models.CharField(max_length=50)
+    title = models.CharField(max_length=200)
+    content = models.TextField(blank=True)
+    image_path = models.CharField(max_length=500, blank=True)
+    tags = models.CharField(max_length=200, blank=True)
+    configuration = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class QuantScenario(models.Model):
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    account = models.ForeignKey(QuantAccount, on_delete=models.CASCADE)
+    outlook_id = models.CharField(max_length=100, blank=True, null=True)
+    pair = models.CharField(max_length=20)
+    direction = models.CharField(max_length=10)
+    setup_id = models.IntegerField(null=True, blank=True)
+    status = models.CharField(max_length=20, default='PENDING')
+    entry_price = models.FloatField(default=0.0)
+    sl_price = models.FloatField(default=0.0)
+    tp_price = models.FloatField(default=0.0)
+    volume = models.FloatField(default=0.01)
+    pnl = models.FloatField(default=0.0)
+    exit_price = models.FloatField(default=0.0)
+    close_time = models.DateTimeField(null=True, blank=True)
+    analysis_details = models.JSONField(default=dict, blank=True)
+    pre_trade_checklist = models.JSONField(default=dict, blank=True)
+    risk_data = models.JSONField(default=dict, blank=True)
+    images = models.JSONField(default=list, blank=True)
+    result_images = models.JSONField(default=list, blank=True)
+    review_data = models.JSONField(default=dict, blank=True)
+    execution_score = models.FloatField(default=0.0)
+    htf_trend = models.CharField(max_length=50, blank=True)
+    market_phase = models.CharField(max_length=50, blank=True)
+    dealing_range = models.CharField(max_length=50, blank=True)
+    narrative = models.TextField(blank=True)
+    scenario_type = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class PortfolioRiskLog(models.Model):
+    account = models.ForeignKey(QuantAccount, on_delete=models.CASCADE)
+    pair = models.CharField(max_length=20)
+    direction = models.CharField(max_length=10)
+    requested_vol = models.FloatField()
+    status = models.CharField(max_length=20)
+    reason = models.CharField(max_length=200)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+# ==========================================
+# KHU VỰC 3: TRẠM KIỂM ĐIỂM & NHẬN ĐỊNH (WEEKLY REVIEW HUB)
+# ==========================================
+import uuid
+
+class MissedTrade(models.Model):
+    """Thùng rác chứa các lệnh bị lỡ hoặc hủy"""
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    account_id = models.IntegerField(default=1)
+    week_start_date = models.DateField()
+    pair = models.CharField(max_length=20)
+    direction = models.CharField(max_length=10)
+    reason = models.CharField(max_length=100)
+    analysis_details = models.TextField(blank=True, null=True)
+    images = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.pair} - {self.reason}"
+
+class WeeklyReview(models.Model):
+    """Hồ sơ kiểm điểm và tâm lý cuối tuần"""
+    account_id = models.IntegerField(default=1)
+    week_start_date = models.DateField()
+    total_trades = models.IntegerField(default=0)
+    win_rate = models.FloatField(default=0.0)
+    net_pnl = models.FloatField(default=0.0)
+    fa_accuracy = models.IntegerField(default=5)
+    ta_accuracy = models.IntegerField(default=5)
+    fusion_score = models.IntegerField(default=5)
+    review_details = models.TextField(default="{}") # Chứa thói quen, tâm lý, bài học
+
+    class Meta:
+        unique_together = ('account_id', 'week_start_date')
+
+    def __str__(self):
+        return f"Review Tuần: {self.week_start_date}"
+
+class WeeklyOutlook(models.Model):
+    """Kế hoạch tác chiến đầu tuần"""
+    account_id = models.IntegerField(default=1)
+    week_start_date = models.DateField()
+    final_bias = models.CharField(max_length=50, default="NEUTRAL")
+    script_plan = models.TextField(blank=True, null=True)
+    ta_bias = models.TextField(blank=True, null=True)
+    fa_bias = models.TextField(default="{}") # Bảng ma trận dòng vốn
+
+    class Meta:
+        unique_together = ('account_id', 'week_start_date')
+
+    def __str__(self):
+        return f"Outlook Tuần: {self.week_start_date}"

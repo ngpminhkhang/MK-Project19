@@ -672,18 +672,30 @@ def create_insight_for_portfolio(request, portfolio_id):
         form = InsightForm(request.POST)
 
         if form.is_valid():
-            insight = form.save(commit=False)
-            insight.portfolio_ref = portfolio
-            insight.save()
+            try:
+                insight = form.save(commit=False)
+                insight.portfolio_ref = portfolio
+                
+                # Đảm bảo metrics được lưu đúng
+                if 'metrics' in form.cleaned_data:
+                    insight.metrics = form.cleaned_data['metrics']
+                
+                insight.save()
 
-            # Link ngược lại để Portfolio có "Linked Insight"
-            portfolio.ref_insight = insight
-            portfolio.save(update_fields=["ref_insight"])  # SỬA: uodate_fields -> update_fields
+                # Link ngược lại để Portfolio có "Linked Insight"
+                portfolio.ref_insight = insight
+                portfolio.save(update_fields=["ref_insight"])
 
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({'success': True, 'insight_id': insight.id})
-            messages.success(request, "Insight created successfully for portfolio!")
-            return redirect("portfolio")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': True, 'insight_id': insight.id})
+                messages.success(request, "Insight created successfully for portfolio!")
+                return redirect("portfolio")
+            except Exception as e:
+                logger.error(f"Error creating insight: {e}")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'errors': str(e)})
+                messages.error(request, f"Error creating insight: {str(e)}")
+                return redirect("portfolio")
         else:
             logger.error(f"Insight form errors: {form.errors}")  # SỬA: ) -> )
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -713,23 +725,37 @@ def edit_insight(request, insight_id):
         form = InsightForm(request.POST, request.FILES, instance=insight)
         
         if form.is_valid():
-            # Xử lý remove attachment nếu được chọn
-            if request.POST.get('remove_attachment') == 'true':
-                if insight.attached_image:
-                    insight.attached_image.delete(save=False)
-                    insight.attached_image = None
-                if insight.attached_file:
-                    insight.attached_file.delete(save=False)
-                    insight.attached_file = None
-            
-            # Lưu form
-            form.save()
-            
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({'success': True})
-            
-            messages.success(request, "Insight updated successfully!")
-            return redirect("insights")
+            try:
+                # Xử lý remove attachment nếu được chọn
+                if request.POST.get('remove_attachment') == 'true':
+                    if insight.attached_image:
+                        insight.attached_image.delete(save=False)
+                        insight.attached_image = None
+                    if insight.attached_file:
+                        insight.attached_file.delete(save=False)
+                        insight.attached_file = None
+                
+                # Lưu form với xử lý metrics
+                insight = form.save(commit=False)
+                
+                # Đảm bảo metrics được lưu đúng
+                if 'metrics' in form.cleaned_data:
+                    insight.metrics = form.cleaned_data['metrics']
+                
+                insight.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': True})
+                
+                messages.success(request, "Insight updated successfully!")
+                return redirect("insights")
+                
+            except Exception as e:
+                logger.error(f"Error saving insight: {e}")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'errors': str(e)})
+                messages.error(request, f"Error updating insight: {str(e)}")
+                return redirect("insights")
         else:
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({'success': False, 'errors': form.errors.as_text()})
@@ -844,21 +870,33 @@ def trade_insight_modal(request, trade_id):
     if request.method == "POST":
         form = InsightForm(request.POST, instance=existing_insight)
         if form.is_valid():
-            insight = form.save(commit=False)
-            insight.portfolio_ref = trade.portfolio
-            insight.save()
+            try:
+                insight = form.save(commit=False)
+                insight.portfolio_ref = trade.portfolio
+                
+                # Đảm bảo metrics được lưu đúng
+                if 'metrics' in form.cleaned_data:
+                    insight.metrics = form.cleaned_data['metrics']
+                
+                insight.save()
 
-            # Link back
-            trade.portfolio.ref_insight = insight
-            trade.portfolio.save(update_fields=["ref_insight"])
+                # Link back
+                trade.portfolio.ref_insight = insight
+                trade.portfolio.save(update_fields=["ref_insight"])
 
-            trade.ref = f"Insight #{insight.id}"  # SỬA: Insight -> insight
-            trade.save(update_fields=["ref"])
+                trade.ref = f"Insight #{insight.id}"
+                trade.save(update_fields=["ref"])
 
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':  # SỬA: Wi++{ -> With
-                return JsonResponse({'success': True, 'insight_id': insight.id})
-            messages.success(request, "Insight saved successfully!")
-            return redirect("portfolio")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': True, 'insight_id': insight.id})
+                messages.success(request, "Insight saved successfully!")
+                return redirect("portfolio")
+            except Exception as e:
+                logger.error(f"Error saving insight: {e}")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'errors': str(e)})
+                messages.error(request, f"Error saving insight: {str(e)}")
+                return redirect("portfolio")
         else:
             # Return errors for AJAX or fallback
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -1142,40 +1180,67 @@ def create_insight_from_trade(request):
         try:
             trade = Trade.objects.get(id=trade_id, portfolio__user=request.user)
             
-            # Tạo insight mới
-            insight = Insight(
-                title=request.POST.get('title'),
-                summary=request.POST.get('summary'),
-                category=request.POST.get('category'),
-                result=request.POST.get('result'),
-                reason=request.POST.get('reason'),
-                analysis=request.POST.get('analysis'),
-                lessons=request.POST.get('lessons'),
-                portfolio_ref=trade.portfolio
-            )
-            
-            # Xử lý file upload
-            if 'attached_image' in request.FILES:
-                insight.attached_image = request.FILES['attached_image']
-            elif 'attached_file' in request.FILES:
-                insight.attached_file = request.FILES['attached_file']
-            
-            # Tự động điền metrics từ trade nếu được chọn
-            if request.POST.get('auto_fill_metrics'):
-                metrics = {
-                    'symbol': trade.symbol,
-                    'side': trade.side,
-                    'entry': float(trade.entry),
-                    'exit': float(trade.exit),
-                    'stoploss': float(trade.stoploss) if trade.stoploss else None,
-                    'quantity': float(trade.qty),
-                    'pnl': float(trade.pnl) if trade.pnl else 0,
-                    'trade_type': trade.trade_type,
-                    'date': trade.date.strftime("%Y-%m-%d")
-                }
-                insight.metrics = metrics
-            
-            insight.save()
+            # Sử dụng form để tạo insight
+            form = InsightForm(request.POST, request.FILES)
+            if form.is_valid():
+                insight = form.save(commit=False)
+                insight.portfolio_ref = trade.portfolio
+                
+                # Đảm bảo metrics được lưu đúng
+                if 'metrics' in form.cleaned_data:
+                    insight.metrics = form.cleaned_data['metrics']
+                
+                # Tự động điền metrics từ trade nếu được chọn
+                if request.POST.get('auto_fill_metrics'):
+                    metrics = {
+                        'symbol': trade.symbol,
+                        'side': trade.side,
+                        'entry': float(trade.entry),
+                        'exit': float(trade.exit),
+                        'stoploss': float(trade.stoploss) if trade.stoploss else None,
+                        'quantity': float(trade.qty),
+                        'pnl': float(trade.pnl) if trade.pnl else 0,
+                        'trade_type': trade.trade_type,
+                        'date': trade.date.strftime("%Y-%m-%d")
+                    }
+                    insight.metrics = metrics
+                
+                insight.save()
+            else:
+                # Nếu form không valid, tạo insight thủ công
+                insight = Insight(
+                    title=request.POST.get('title'),
+                    summary=request.POST.get('summary'),
+                    category=request.POST.get('category'),
+                    result=request.POST.get('result'),
+                    reason=request.POST.get('reason'),
+                    analysis=request.POST.get('analysis'),
+                    lessons=request.POST.get('lessons'),
+                    portfolio_ref=trade.portfolio
+                )
+                
+                # Xử lý file upload
+                if 'attached_image' in request.FILES:
+                    insight.attached_image = request.FILES['attached_image']
+                elif 'attached_file' in request.FILES:
+                    insight.attached_file = request.FILES['attached_file']
+                
+                # Tự động điền metrics từ trade nếu được chọn
+                if request.POST.get('auto_fill_metrics'):
+                    metrics = {
+                        'symbol': trade.symbol,
+                        'side': trade.side,
+                        'entry': float(trade.entry),
+                        'exit': float(trade.exit),
+                        'stoploss': float(trade.stoploss) if trade.stoploss else None,
+                        'quantity': float(trade.qty),
+                        'pnl': float(trade.pnl) if trade.pnl else 0,
+                        'trade_type': trade.trade_type,
+                        'date': trade.date.strftime("%Y-%m-%d")
+                    }
+                    insight.metrics = metrics
+                
+                insight.save()
             
             # Liên kết insight với trade
             trade.ref_insight = insight

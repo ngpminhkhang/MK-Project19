@@ -99,7 +99,8 @@
 
                     <div class="mb-3">
                         <label for="id_metrics" class="form-label">Metrics (JSON format)</label>
-                        <textarea class="form-control" id="id_metrics" name="metrics" rows="2" placeholder='{"pnl": 100, "drawdown": 5}'>{% if insight.metrics %}{{ insight.metrics }}{% endif %}</textarea>
+                        <textarea class="form-control" id="id_metrics" name="metrics" rows="2" placeholder='{"pnl": 100, "drawdown": 5}'>{% if insight.metrics %}{% if insight.metrics|length > 0 %}{{ insight.metrics|safe }}{% endif %}{% endif %}</textarea>
+                        <div class="form-text">Enter valid JSON format, e.g., {"pnl": 100, "drawdown": 5}</div>
                     </div>
                 </form>
             </div>

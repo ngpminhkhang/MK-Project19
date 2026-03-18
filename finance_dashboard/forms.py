@@ -154,7 +154,7 @@ class InsightForm(forms.ModelForm):
             'attached_file', 'attached_image'  # THÊM FIELD FILE
         ]
         widgets = {
-            'metrics': forms.Textarea(attrs={'rows': 2}),
+            'metrics': forms.Textarea(attrs={'rows': 2, 'placeholder': '{"pnl": 100, "drawdown": 5}'}),
             'summary': forms.Textarea(attrs={'rows': 2}),
             'reason': forms.Textarea(attrs={'rows': 3}),
             'analysis': forms.Textarea(attrs={'rows': 3}),
@@ -168,6 +168,23 @@ class InsightForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields:
             self.fields[field].required = False
+
+    def clean_metrics(self):
+        """Validate metrics JSON format"""
+        metrics = self.cleaned_data.get('metrics')
+        if not metrics:
+            return None
+        
+        # Nếu metrics là string, thử parse JSON
+        if isinstance(metrics, str):
+            try:
+                import json
+                parsed_metrics = json.loads(metrics)
+                return parsed_metrics
+            except json.JSONDecodeError:
+                raise forms.ValidationError("Metrics must be valid JSON format")
+        
+        return metrics
 
     # THÊM CLEAN METHOD ĐỂ VALIDATE FILE
     def clean(self):
