@@ -22,7 +22,7 @@ from django.template.loader import render_to_string
 from tenacity import retry, stop_after_attempt, wait_fixed
 import logging
 from django.views.decorators.csrf import csrf_exempt
-
+from .risk_engine import FundManager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -1347,3 +1347,64 @@ def dashboard_metrics_api(request):
     }
     
     return JsonResponse(payload)
+
+# ==========================================
+# MT5 EXECUTION NODE (WEBHOOK)
+# ==========================================
+
+@csrf_exempt
+def mt5_execution_node(request):
+    """
+    Cổng tiếp nhận tín hiệu từ chiến trường MT5.
+    Chỉ chấp nhận lệnh POST chứa JSON Payload.
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "PROTOCOL REJECTED. POST REQUESTS ONLY."}, status=405)
+
+    try:
+        # 1. Bóc tách gói tình báo từ MT5
+        payload = json.loads(request.body)
+        
+        asset_ticker = payload.get("ticker", "UNKNOWN")
+        signal_type = payload.get("signal_direction", "NONE") # BUY / SELL
+        account_balance = float(payload.get("balance", 0.0))
+        system_win_rate = float(payload.get("win_rate", 0.0))
+        system_rr_ratio = float(payload.get("rr_ratio", 0.0))
+        throttle_status = float(payload.get("throttle_rate", 1.0)) # Tỷ lệ bóp vốn hiện tại
+
+        logger.info(f"INCOMING INTEL: {signal_type} {asset_ticker}. AUM: ${account_balance}")
+
+        # 2. Đẩy qua Lò Phản Ứng Toán Học (Kelly + Anti-Euphoria)
+        # Sếp đang dùng chế độ Half-Kelly an toàn
+        approved_capital = FundManager.calculate_final_bullet(
+            capital=account_balance,
+            win_rate=system_win_rate,
+            rr_ratio=system_rr_ratio,
+            throttle_rate=throttle_status,
+            use_half_kelly=True 
+        )
+
+        if approved_capital <= 0:
+            logger.warning("RISK ENGINE VETO: Lệnh bị phủ quyết bởi Toán Học.")
+            return JsonResponse({
+                "directive": "ABORT",
+                "approved_capital": 0.0,
+                "message": "Negative Edge or High Risk Detected. Stand down."
+            })
+
+        # 3. Ký duyệt và cấp vốn cho MT5 xả đạn
+        logger.info(f"DIRECTIVE APPROVED. Capital Allocated: ${approved_capital}")
+        
+        return JsonResponse({
+            "directive": "EXECUTE",
+            "ticker": asset_ticker,
+            "signal_direction": signal_type,
+            "approved_capital": approved_capital,
+            "message": "Clear to engage."
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "CORRUPTED PAYLOAD. INVALID JSON."}, status=400)
+    except Exception as e:
+        logger.error(f"SYSTEM FAULT: {str(e)}")
+        return JsonResponse({"error": "INTERNAL ENGINE FAILURE."}, status=500)
