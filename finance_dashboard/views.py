@@ -1444,4 +1444,24 @@ def radar_monitor_api(request):
         return JsonResponse({"radar_blips": payload})
     
     return JsonResponse({"error": "STRICT GET PROTOCOL ONLY."}, status=405)
+
+@csrf_exempt
+def check_ticket_status(request):
+    """
+    Trạm tra cứu. EA gọi vào đây để hỏi: "Sếp duyệt lệnh chưa?"
+    """
+    if request.method == 'GET':
+        ticket_id = request.GET.get('ticket_id')
+        if not ticket_id:
+            return JsonResponse({"error": "Missing ticket_id"}, status=400)
+            
+        try:
+            signal = AlphaSignal.objects.get(id=ticket_id)
+            return JsonResponse({
+                "status": signal.status,
+                "approved_lot": signal.ceo_approved_lot,
+                "direction": signal.signal_direction
+            })
+        except AlphaSignal.DoesNotExist:
+            return JsonResponse({"error": "Vé không tồn tại."}, status=404)
     
