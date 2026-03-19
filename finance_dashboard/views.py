@@ -1464,4 +1464,31 @@ def check_ticket_status(request):
             })
         except AlphaSignal.DoesNotExist:
             return JsonResponse({"error": "Vé không tồn tại."}, status=404)
+
+@csrf_exempt
+def approve_ticket_api(request):
+    """
+    Buồng hành quyết. Nơi CEO đóng dấu triện duyệt lệnh.
+    """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            ticket_id = data.get('ticket_id')
+            approved_lot = float(data.get('approved_lot', 0))
+
+            # Tìm tờ trình và đổi trạng thái
+            signal = AlphaSignal.objects.get(id=ticket_id)
+            signal.status = 'APPROVED'
+            signal.ceo_approved_lot = approved_lot
+            signal.save()
+            
+            logger.info(f"SẾP ĐÃ DUYỆT VÉ #{ticket_id}. Khối lượng: {approved_lot} Lot.")
+            return JsonResponse({"message": "Ấn tín đã ban. Chờ lính xả đạn."})
+            
+        except AlphaSignal.DoesNotExist:
+            return JsonResponse({"error": "Tờ trình ma!"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+            
+    return JsonResponse({"error": "POST ONLY"}, status=405)
     
