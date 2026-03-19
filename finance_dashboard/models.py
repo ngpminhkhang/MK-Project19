@@ -282,20 +282,6 @@ class WeeklyReview(models.Model):
     def __str__(self):
         return f"Review Tuần: {self.week_start_date}"
 
-class WeeklyOutlook(models.Model):
-    """Kế hoạch tác chiến đầu tuần"""
-    account_id = models.IntegerField(default=1)
-    week_start_date = models.DateField()
-    final_bias = models.CharField(max_length=50, default="NEUTRAL")
-    script_plan = models.TextField(blank=True, null=True)
-    ta_bias = models.TextField(blank=True, null=True)
-    fa_bias = models.TextField(default="{}") # Bảng ma trận dòng vốn
-
-    class Meta:
-        unique_together = ('account_id', 'week_start_date')
-
-    def __str__(self):
-        return f"Outlook Tuần: {self.week_start_date}"
     
 class MacroDirective(models.Model):
     """
@@ -361,3 +347,15 @@ class AlphaSignal(models.Model):
 
     def __str__(self):
         return f"[{self.status}] {self.signal_direction} {self.ticker} | Lãi/Lỗ: ${self.realized_pnl}"
+    
+class WeeklyOutlook(models.Model):
+    """ NGỌN HẢI ĐĂNG VĨ MÔ """
+    week_start = models.DateField(unique=True)
+    market_sentiment = models.CharField(max_length=50, default="MIXED") # Risk-On / Risk-Off / Mixed
+    weekly_bias = models.CharField(max_length=50, default="NEUTRAL")    # BUY / SELL / NEUTRAL
+    execution_script = models.TextField(blank=True, null=True)          # Đẩy sang trang Review
+    
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"OUTLOOK: {self.week_start} | Bias: {self.weekly_bias}"

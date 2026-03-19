@@ -10,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from finance_dashboard.services.forex_service import get_forex_data, get_macro_data
 from finance_dashboard.services.macro_service import get_cot_data, get_us10y_yield, get_inflation_data
 from .forms import TechnicalForm, MacroForm, TradeForm, PortfolioForm, InsightForm, InsightSearchForm
-from .models import Portfolio, Trade, ForexPair, Insight
+from .models import Portfolio, Trade, ForexPair, Insight, WeeklyOutlook
 from django.db.models import Q
 from django.core.paginator import Paginator
 import json
@@ -1521,4 +1521,22 @@ def mark_executed(request):
         except:
             pass
     return JsonResponse({"message": "OK"})
+
+@csrf_exempt
+def sync_outlook_api(request):
+    """ Nhận báo cáo Vĩ mô từ Web """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            outlook, created = WeeklyOutlook.objects.update_or_create(
+                week_start=data.get('week_start'),
+                defaults={
+                    'market_sentiment': data.get('market_sentiment', 'MIXED'),
+                    'weekly_bias': data.get('weekly_bias', 'NEUTRAL'),
+                    'execution_script': data.get('execution_script', '')
+                }
+            )
+            return JsonResponse({"message": "Ngọn Hải Đăng đã thắp sáng!"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
     

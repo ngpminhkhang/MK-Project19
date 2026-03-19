@@ -102,5 +102,6 @@ urlpatterns = [
     path('api/mt5/approve/', views.approve_ticket_api, name='api_approve_ticket'),
     path('api/mt5/fetch_approved/', views.approve_ticket_api, name='api/mt5/fetch_approved'),
     path('api/mt5/mark_executed/', views.approve_ticket_api, name='api/mt5/mark_executed'),
+    path('api/outlook/sync/', views.approve_ticket_api, name='api/outlook/sync'),
 
 ]
