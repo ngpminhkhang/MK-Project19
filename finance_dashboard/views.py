@@ -22,6 +22,7 @@ from django.template.loader import render_to_string
 from tenacity import retry, stop_after_attempt, wait_fixed
 import logging
 from django.views.decorators.csrf import csrf_exempt
+from .models import AlphaSignal, MacroDirective
 from .risk_engine import FundManager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -1349,62 +1350,98 @@ def dashboard_metrics_api(request):
     return JsonResponse(payload)
 
 # ==========================================
-# MT5 EXECUTION NODE (WEBHOOK)
+# MT5 SIGNAL RECEIVER (RADAR NODE)
 # ==========================================
 
 @csrf_exempt
 def mt5_execution_node(request):
     """
-    Cổng tiếp nhận tín hiệu từ chiến trường MT5.
-    Chỉ chấp nhận lệnh POST chứa JSON Payload.
+    Cổng tiếp nhận tờ trình từ chiến trường.
+    Không cấp quyền bắn. Chỉ lưu vào két chờ CEO duyệt.
     """
     if request.method != 'POST':
-        return JsonResponse({"error": "PROTOCOL REJECTED. POST REQUESTS ONLY."}, status=405)
+        return JsonResponse({"error": "PROTOCOL REJECTED. POST ONLY."}, status=405)
 
     try:
-        # 1. Bóc tách gói tình báo từ MT5
+        # 1. Bóc tách kiện hàng
         payload = json.loads(request.body)
+        ticker = payload.get("ticker", "UNKNOWN")
+        signal_direction = payload.get("signal_direction", "NONE")
+        balance = float(payload.get("balance", 0.0))
+        win_rate = float(payload.get("win_rate", 0.0))
+        rr_ratio = float(payload.get("rr_ratio", 0.0))
+        throttle_rate = float(payload.get("throttle_rate", 1.0))
+
+        # 2. Đối chiếu Ngọn Hải Đăng Vĩ Mô
+        # Tìm xem sếp có cắm cờ định hướng cho cặp tiền này không
+        macro = MacroDirective.objects.filter(ticker=ticker, is_active=True).first()
+        is_aligned = True
         
-        asset_ticker = payload.get("ticker", "UNKNOWN")
-        signal_type = payload.get("signal_direction", "NONE") # BUY / SELL
-        account_balance = float(payload.get("balance", 0.0))
-        system_win_rate = float(payload.get("win_rate", 0.0))
-        system_rr_ratio = float(payload.get("rr_ratio", 0.0))
-        throttle_status = float(payload.get("throttle_rate", 1.0)) # Tỷ lệ bóp vốn hiện tại
+        if macro and macro.direction != 'NEUTRAL':
+            if macro.direction != signal_direction:
+                is_aligned = False
+                logger.warning(f"LỆNH BỘI PHẢN! Sếp bảo {macro.direction}, lính xúi {signal_direction}.")
 
-        logger.info(f"INCOMING INTEL: {signal_type} {asset_ticker}. AUM: ${account_balance}")
-
-        # 2. Đẩy qua Lò Phản Ứng Toán Học (Kelly + Anti-Euphoria)
-        # Sếp đang dùng chế độ Half-Kelly an toàn
+        # 3. Lõi Kelly tính toán ngân sách tối đa
         approved_capital = FundManager.calculate_final_bullet(
-            capital=account_balance,
-            win_rate=system_win_rate,
-            rr_ratio=system_rr_ratio,
-            throttle_rate=throttle_status,
-            use_half_kelly=True 
+            capital=balance, win_rate=win_rate, rr_ratio=rr_ratio, throttle_rate=throttle_rate
         )
 
-        if approved_capital <= 0:
-            logger.warning("RISK ENGINE VETO: Lệnh bị phủ quyết bởi Toán Học.")
-            return JsonResponse({
-                "directive": "ABORT",
-                "approved_capital": 0.0,
-                "message": "Negative Edge or High Risk Detected. Stand down."
-            })
+        # Ước lượng Lot Size (Giả định Contract Size = 100,000 để lên mây dễ nhìn)
+        kelly_lot = round(approved_capital / 100000.0, 2)
 
-        # 3. Ký duyệt và cấp vốn cho MT5 xả đạn
-        logger.info(f"DIRECTIVE APPROVED. Capital Allocated: ${approved_capital}")
-        
+        if kelly_lot <= 0:
+            logger.info("Kèo thối. Toán học bác bỏ ngay từ vòng gửi xe.")
+            return JsonResponse({"directive": "REJECTED", "message": "Toán học khuyên bạn đứng im."})
+
+        # 4. Lưu vào Két Sắt (Trạng thái PENDING - Chờ Duyệt)
+        signal = AlphaSignal.objects.create(
+            ticker=ticker,
+            signal_direction=signal_direction,
+            win_rate=win_rate,
+            rr_ratio=rr_ratio,
+            is_macro_aligned=is_aligned,
+            kelly_recommended_lot=kelly_lot,
+            status='PENDING'
+        )
+
+        logger.info(f"Tờ trình #{signal.id} đã ném lên bàn Giám đốc.")
+
+        # 5. Phản hồi cho thằng MT5 cúp máy và đi ngủ
         return JsonResponse({
-            "directive": "EXECUTE",
-            "ticker": asset_ticker,
-            "signal_direction": signal_type,
-            "approved_capital": approved_capital,
-            "message": "Clear to engage."
+            "directive": "RECEIVED_AND_PENDING",
+            "ticket_id": signal.id,
+            "message": "Đã trình sếp. Cấm tự tiện bóp cò."
         })
 
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "CORRUPTED PAYLOAD. INVALID JSON."}, status=400)
     except Exception as e:
         logger.error(f"SYSTEM FAULT: {str(e)}")
-        return JsonResponse({"error": "INTERNAL ENGINE FAILURE."}, status=500)
+        return JsonResponse({"error": "Bo mạch cháy."}, status=500)
+    
+# ==========================================
+# ALGORITHMIC RADAR (MẶT TIỀN MONITOR)
+# ==========================================
+
+@csrf_exempt
+def radar_monitor_api(request):
+    """
+    Trạm gác Radar. Lôi cổ mọi tờ trình PENDING ra ánh sáng.
+    """
+    if request.method == 'GET':
+        # Vét máng toàn bộ tín hiệu đang chờ sếp duyệt, xếp mới nhất lên đầu
+        pending_signals = AlphaSignal.objects.filter(status='PENDING').order_by('-created_at')
+        
+        payload = []
+        for sig in pending_signals:
+            payload.append({
+                "id": sig.id,
+                "ticker": sig.ticker,
+                "direction": sig.signal_direction,
+                "macro_aligned": sig.is_macro_aligned,
+                "time": sig.created_at.strftime("%H:%M:%S")
+            })
+            
+        return JsonResponse({"radar_blips": payload})
+    
+    return JsonResponse({"error": "STRICT GET PROTOCOL ONLY."}, status=405)
+    

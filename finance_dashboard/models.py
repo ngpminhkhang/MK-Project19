@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from decimal import Decimal
+from django.utils import timezone
 import uuid
 
 # ==========================================
@@ -295,3 +296,68 @@ class WeeklyOutlook(models.Model):
 
     def __str__(self):
         return f"Outlook Tuần: {self.week_start_date}"
+    
+class MacroDirective(models.Model):
+    """
+    NGỌN HẢI ĐĂNG VĨ MÔ. Lệnh bài tử thần của CEO.
+    Xác định xu hướng chủ đạo. Kẻ nào cản đường, kẻ đó chết.
+    """
+    DIRECTION_CHOICES = [
+        ('BUY', 'LONG (BULLISH)'),
+        ('SELL', 'SHORT (BEARISH)'),
+        ('NEUTRAL', 'STAND CLEAR (Đứng ngoài)'),
+    ]
+    
+    ticker = models.CharField(max_length=20, help_text="VD: XAUUSD, EURJPY")
+    direction = models.CharField(max_length=10, choices=DIRECTION_CHOICES)
+    week_start = models.DateField(default=timezone.now, help_text="Ngày bắt đầu hiệu lực")
+    is_active = models.BooleanField(default=True, help_text="Tắt đi nếu sếp đổi ý")
+    
+    # Dấu vết thời gian
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"MACRO: {self.ticker} -> {self.direction} (Active: {self.is_active})"
+
+
+class AlphaSignal(models.Model):
+    """
+    TỜ TRÌNH CHIẾN TRƯỜNG.
+    Ghi nhận vòng đời của một lệnh từ lúc sinh ra đến lúc chốt sổ.
+    """
+    STATUS_CHOICES = [
+        ('PENDING', 'CHỜ DUYỆT (Radar)'),
+        ('APPROVED', 'ĐÃ DUYỆT (Execute Node)'),
+        ('REJECTED', 'BÁC BỎ (Thùng rác)'),
+        ('EXECUTED', 'ĐANG CHẠY (Sàn MT5)'),
+        ('CLOSED', 'CHỐT SỔ (Sổ cái PnL)'),
+    ]
+
+    # 1. Thông tin trinh sát từ EA
+    ticker = models.CharField(max_length=20)
+    signal_direction = models.CharField(max_length=10)
+    win_rate = models.FloatField(default=0.0)
+    rr_ratio = models.FloatField(default=0.0)
+    
+    # 2. Đối chiếu Vĩ mô (Radar)
+    is_macro_aligned = models.BooleanField(
+        default=True, 
+        help_text="False = LỆNH BỘI PHẢN. Đi ngược Macro Outlook."
+    )
+    
+    # 3. Phán quyết Toán học & Quyền sinh sát (Execute Node)
+    kelly_recommended_lot = models.FloatField(default=0.0, help_text="Đạn tối đa Kelly cho phép")
+    ceo_approved_lot = models.FloatField(default=0.0, null=True, blank=True, help_text="Đạn thực tế CEO nạp")
+    
+    # 4. Trạng thái vòng đời
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='PENDING')
+    
+    # 5. Kế toán ghi sổ (Ledger)
+    ticket_id = models.CharField(max_length=50, null=True, blank=True, help_text="Mã vé trên MT5")
+    realized_pnl = models.FloatField(default=0.0, help_text="Tiền tươi thóc thật")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"[{self.status}] {self.signal_direction} {self.ticker} | Lãi/Lỗ: ${self.realized_pnl}"

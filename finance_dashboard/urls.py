@@ -97,5 +97,6 @@ urlpatterns = [
     path('api/dashboard/metrics/', views.dashboard_metrics_api, name='api_dashboard_metrics'),
 
     path('api/mt5/execution/', views.mt5_execution_node, name='api_mt5_execution'),
+    path('api/mt5/radar/', views.radar_monitor_api, name='api_radar_monitor'),
 
 ]
