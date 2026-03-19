@@ -1491,4 +1491,34 @@ def approve_ticket_api(request):
             return JsonResponse({"error": str(e)}, status=500)
             
     return JsonResponse({"error": "POST ONLY"}, status=405)
+
+@csrf_exempt
+def get_approved_tickets(request):
+    """ EA tự động vào đây bới móc xem có lệnh nào sếp vừa duyệt không """
+    if request.method == 'GET':
+        # Bốc tờ trình APPROVED cũ nhất ra xử lý
+        signal = AlphaSignal.objects.filter(status='APPROVED').first()
+        if signal:
+            return JsonResponse({
+                "ticket_id": signal.id,
+                "ticker": signal.ticker,
+                "direction": signal.signal_direction,
+                "approved_lot": signal.ceo_approved_lot
+            })
+        return JsonResponse({"message": "Bầu trời quang đãng."})
+
+@csrf_exempt
+def mark_executed(request):
+    """ EA nã đạn xong gọi vào đây báo cáo để không bị bắn đúp """
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        ticket_id = data.get('ticket_id')
+        try:
+            signal = AlphaSignal.objects.get(id=ticket_id)
+            signal.status = 'EXECUTED'
+            signal.save()
+            return JsonResponse({"message": "Sổ cái đã ghi nhận xác chết."})
+        except:
+            pass
+    return JsonResponse({"message": "OK"})
     

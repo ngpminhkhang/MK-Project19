@@ -100,5 +100,7 @@ urlpatterns = [
     path('api/mt5/radar/', views.radar_monitor_api, name='api_radar_monitor'),
     path('api/mt5/check_status/', views.check_ticket_status, name='api_check_status'),
     path('api/mt5/approve/', views.approve_ticket_api, name='api_approve_ticket'),
+    path('api/mt5/fetch_approved/', views.approve_ticket_api, name='api/mt5/fetch_approved'),
+    path('api/mt5/mark_executed/', views.approve_ticket_api, name='api/mt5/mark_executed'),
 
 ]
