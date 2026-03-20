@@ -97,11 +97,16 @@ urlpatterns = [
     path('api/dashboard/metrics/', views.dashboard_metrics_api, name='api_dashboard_metrics'),
 
     path('api/mt5/execution/', views.mt5_execution_node, name='api_mt5_execution'),
-    path('api/mt5/radar/', views.radar_monitor_api, name='api_radar_monitor'),
+   path('api/mt5/radar/', views.radar_monitor_api, name='api_radar_monitor'),
     path('api/mt5/check_status/', views.check_ticket_status, name='api_check_status'),
     path('api/mt5/approve/', views.approve_ticket_api, name='api_approve_ticket'),
-    path('api/mt5/fetch_approved/', views.approve_ticket_api, name='api/mt5/fetch_approved'),
-    path('api/mt5/mark_executed/', views.approve_ticket_api, name='api/mt5/mark_executed'),
-    path('api/outlook/sync/', views.approve_ticket_api, name='api/outlook/sync'),
+    
+    # === CÁC NÚT THẮT ĐÃ ĐƯỢC CHỮA CHÁY ===
+    path('api/mt5/fetch_approved/', views.get_approved_tickets, name='api_fetch_approved'),
+    path('api/mt5/mark_executed/', views.mark_executed, name='api_mark_executed'),
+    path('api/outlook/sync/', views.sync_outlook_api, name='api_sync_outlook'),
+    
+    # Đừng quên Cầu Nối Vạn Năng (Khai hỏa khẩn cấp) sếp đúc hôm trước:
+    path('api/mt5/direct_fire/', views.direct_fire_api, name='api_direct_fire'),
 
 ]
