@@ -1658,7 +1658,7 @@ def parse_to_dict(val):
 
 @csrf_exempt
 def update_scenario_api(request):
-    """ Máy xay sinh tố: Nhai trực tiếp Object từ Frontend """
+    """ Nhận mọi thứ dạng String bọc kín từ Frontend, không tự ý sửa đổi """
     if request.method == 'POST':
         try:
             payload = json.loads(request.body)
@@ -1666,28 +1666,22 @@ def update_scenario_api(request):
             uuid_str = data.get('uuid')
             scenario = QuantScenario.objects.get(uuid=uuid_str)
 
-            # GÁn TRỰC TIẾP DATA (Vì json.loads đã biến mọi thứ thành Dict/List)
-            if 'analysis_details' in data: scenario.analysis_details = data['analysis_details']
-            if 'pre_trade_checklist' in data: scenario.pre_trade_checklist = data['pre_trade_checklist']
-            if 'risk_data' in data: scenario.risk_data = data['risk_data']
-            if 'images' in data: scenario.images = data['images']
-            if 'result_images' in data: scenario.result_images = data['result_images']
-            if 'review_data' in data: scenario.review_data = data['review_data']
-
-            if 'setup_id' in data: scenario.setup_id = data['setup_id']
-            if 'entry_price' in data: scenario.entry_price = data['entry_price']
-            if 'sl_price' in data: scenario.sl_price = data['sl_price']
-            if 'tp_price' in data: scenario.tp_price = data['tp_price']
-            if 'volume' in data: scenario.volume = data['volume']
-            if 'pnl' in data: scenario.pnl = data['pnl']
-            if 'exit_price' in data: scenario.exit_price = data['exit_price']
-            if 'narrative' in data: scenario.narrative = data['narrative']
-            if 'scenario_type' in data: scenario.scenario_type = data['scenario_type']
+            # Quét và lưu trực tiếp mọi trường dữ liệu
+            fields = ['analysis_details', 'pre_trade_checklist', 'risk_data', 'images', 
+                      'result_images', 'review_data', 'setup_id', 'entry_price', 'sl_price', 
+                      'tp_price', 'volume', 'pnl', 'exit_price', 'narrative', 'scenario_type', 
+                      'htf_trend', 'market_phase', 'dealing_range']
+            
+            for field in fields:
+                if field in data:
+                    setattr(scenario, field, data[field])
 
             scenario.save()
-            return JsonResponse({"message": "Đã đổ bê tông dữ liệu!"})
+            return JsonResponse({"message": "Đã lưu sổ cái an toàn!"})
+            
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+            
     return JsonResponse({"error": "POST ONLY"}, status=405)
 
 @csrf_exempt
