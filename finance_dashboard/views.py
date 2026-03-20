@@ -1648,122 +1648,77 @@ def update_pnl_api(request):
             
     return JsonResponse({"error": "POST ONLY"}, status=405)
 
-
-# HÀM BỔ TRỢ MỚI: MÁY XAY SINH TỐ V2
-def json_processor(data_field):
-    """Máy xay sinh tố v2: Ép kiểu tuyệt đối về object/array trước khi lưu.
-       Nếu frontend bị ngáo gửi chuỗi, lột sạch vỏ. 
-       Nếu gửi chuỗi thường (không phải JSON), nhét vào 'notes'. """
-    
-    # 1. Nếu nó đã là object hoặc mảng, trả về luôn
-    if isinstance(data_field, (dict, list)):
-        return data_field
-
-    # 2. Nếu nó là chuỗi, bắt đầu lột vỏ
-    if isinstance(data_field, str):
-        data_field = data_field.strip()
-        # Xử lý các trường hợp chuỗi rỗng
-        if not data_field or data_field in ["{}", "[]", "null", "undefined"]:
-            return {} 
-            
+def safe_json_load(val, default):
+    if val is None:
+        return default
+    if isinstance(val, (dict, list)):
+        return val
+    if isinstance(val, str):
         try:
-            # Vòng lặp vỡ lòng: Tiếp tục lột nếu bên trong vẫn là chuỗi (stringify nhiều lần)
-            parsed = json.loads(data_field)
-            while isinstance(parsed, str):
-                parsed = json.loads(parsed)
-            
-            # Xử lý trường hợp json.loads trả về null
-            if parsed is None:
-                return {}
+            parsed = json.loads(val)
+            # Lột vỏ lớp thứ hai
+            if isinstance(parsed, str):
+                return json.loads(parsed)
             return parsed
-        except json.JSONDecodeError:
-            # 3. Nếu nó là chuỗi thường (ví dụ: 'some note text'), nhét vào object ghi chú
-            return {"notes": data_field}
-            
-    # 4. Nếu là kiểu dữ liệu khác (int, float, bool), bọc lại thành object
-    return {"notes": str(data_field)}
+        except:
+            return default
+    return default
 
-# HÀM UPDATE_SCENARIO_API MỚI - ĐÃ ĐƯỢC LÊN ĐỜI
 @csrf_exempt
 def update_scenario_api(request):
-    """ Nhận mọi thứ từ Frontend, gột rửa, rồi đổ bê tông vào Két sắt. """
-    if request.method == 'POST':
-        try:
-            payload = json.loads(request.body)
-            # Hỗ trợ cả payload phẳng và payload được bọc trong 'input'
-            data = payload.get('input', payload)
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid method"}, status=405)
+    try:
+        body = json.loads(request.body)
+        data = body.get("input", {})
+        scenario = QuantScenario.objects.get(uuid=data.get("uuid"))
+        
+        # BỘ LỌC JSON
+        if "analysis_details" in data:
+            scenario.analysis_details = safe_json_load(data["analysis_details"], {})
+        if "pre_trade_checklist" in data:
+            scenario.pre_trade_checklist = safe_json_load(data["pre_trade_checklist"], {})
+        if "risk_data" in data:
+            scenario.risk_data = safe_json_load(data["risk_data"], {})
+        if "images" in data:
+            scenario.images = safe_json_load(data["images"], [])
+        if "result_images" in data:
+            scenario.result_images = safe_json_load(data["result_images"], [])
+        if "review_data" in data:
+            scenario.review_data = safe_json_load(data["review_data"], {})
             
-            uuid_str = data.get('uuid')
-            if not uuid_str:
-                return JsonResponse({"error": "Cần UUID để update!"}, status=400)
-                
-            # Sử dụng .get() để nổ exception nếu không tìm thấy, giúp ta debug dễ hơn
-            scenario = QuantScenario.objects.get(uuid=uuid_str)
-
-            # --- PHẦN ÉP KIỂU JSON: ĐẬP TAN LỖI 'MẤT TRÍ NHỚ' ---
-            # Danh sách các trường JSONField
-            json_fields = ['analysis_details', 'pre_trade_checklist', 'risk_data', 'images', 'result_images', 'review_data']
+        # TRƯỜNG BÌNH THƯỜNG
+        if "pnl" in data: 
+            scenario.pnl = data["pnl"]
+        if "exit_price" in data: 
+            scenario.exit_price = data["exit_price"]
             
-            # Lặp qua từng trường và ép kiểu qua Máy xay sinh tố v2
-            for field in json_fields:
-                if field in data:
-                    # Ép kiểu tuyệt đối trước khi gán
-                    setattr(scenario, field, json_processor(data[field]))
-
-            # --- PHẦN XỬ LÝ TRƯỜNG VĂN BẢN/SỐ THÔNG THƯỜNG ---
-            # Danh sách các trường thường
-            standard_fields = [
-                'setup_id', 'entry_price', 'sl_price', 'tp_price', 'volume', 
-                'pnl', 'exit_price', 'narrative', 'scenario_type', 'htf_trend', 
-                'market_phase', 'dealing_range', 'status'
-            ]
-            
-            # Xử lý các trường thông thường
-            for field in standard_fields:
-                if field in data:
-                    setattr(scenario, field, data[field])
-
-            # ĐỔ BÊ TÔNG!
-            scenario.save()
-            return JsonResponse({
-                "message": "Đã đổ bê tông vào sổ cái an toàn!",
-                "uuid": uuid_str
-            })
-            
-        except QuantScenario.DoesNotExist:
-            return JsonResponse({"error": f"Không tìm thấy Scenario với UUID: {uuid_str}"}, status=404)
-        except Exception as e:
-            # Gửi lỗi chi tiết về Frontend để sếp dễ debug
-            return JsonResponse({"error": f"Lỗi nội bộ server: {str(e)}"}, status=500)
-            
-    return JsonResponse({"error": "Chỉ chấp nhận phương thức POST"}, status=405)
+        scenario.save()
+        return JsonResponse({"status": "ok"})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
 
 @csrf_exempt
 def review_api(request):
-    """ Trạm thu phát dữ liệu cho phòng System Audit """
-    if request.method == 'GET':
-        week_start = request.GET.get('week_start')
-        try:
-            rev = WeeklyReview.objects.get(week_start_date=week_start)
-            return JsonResponse({
-                "fa_accuracy": rev.fa_accuracy, "ta_accuracy": rev.ta_accuracy, 
-                "fusion_score": rev.fusion_score, "review_details": rev.review_details
-            })
-        except WeeklyReview.DoesNotExist:
-            return JsonResponse({})
-    elif request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            WeeklyReview.objects.update_or_create(
-                week_start_date=data['week_start_date'],
-                account_id=data.get('account_id', 1),
-                defaults={
-                    "total_trades": data.get('total_trades', 0), "win_rate": data.get('win_rate', 0.0),
-                    "net_pnl": data.get('net_pnl', 0.0), "fa_accuracy": data.get('fa_accuracy', 5),
-                    "ta_accuracy": data.get('ta_accuracy', 5), "fusion_score": data.get('fusion_score', 5),
-                    "review_details": data.get('review_details', '{}')
-                }
-            )
-            return JsonResponse({"message": "Đã lưu biên bản thẩm vấn!"})
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid method"}, status=405)
+    try:
+        data = json.loads(request.body)
+        review_details = safe_json_load(data.get("review_details"), {})
+        
+        obj, created = WeeklyReview.objects.update_or_create(
+            week_start_date=data["week_start_date"],
+            account_id=data.get("account_id", 1),
+            defaults={
+                "total_trades": data.get("total_trades", 0),
+                "win_rate": data.get("win_rate", 0),
+                "net_pnl": data.get("net_pnl", 0),
+                "fa_accuracy": data.get("fa_accuracy", 0),
+                "ta_accuracy": data.get("ta_accuracy", 0),
+                "fusion_score": data.get("fusion_score", 0),
+                "review_details": review_details,
+            }
+        )
+        return JsonResponse({"status": "saved"})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
