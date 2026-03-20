@@ -1648,58 +1648,34 @@ def update_pnl_api(request):
             
     return JsonResponse({"error": "POST ONLY"}, status=405)
 
-@csrf_exempt
-def review_api(request):
-    """ Bơm và hút dữ liệu cho phòng Thẩm Vấn (System Audit) """
-    if request.method == 'GET':
-        week_start = request.GET.get('week_start')
-        try:
-            rev = WeeklyReview.objects.get(week_start_date=week_start)
-            return JsonResponse({
-                "fa_accuracy": rev.fa_accuracy, "ta_accuracy": rev.ta_accuracy, 
-                "fusion_score": rev.fusion_score, "review_details": rev.review_details
-            })
-        except WeeklyReview.DoesNotExist:
-            return JsonResponse({})
-            
-    elif request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            WeeklyReview.objects.update_or_create(
-                week_start_date=data['week_start_date'],
-                account_id=data.get('account_id', 1),
-                defaults={
-                    "total_trades": data.get('total_trades', 0),
-                    "win_rate": data.get('win_rate', 0.0),
-                    "net_pnl": data.get('net_pnl', 0.0),
-                    "fa_accuracy": data.get('fa_accuracy', 5),
-                    "ta_accuracy": data.get('ta_accuracy', 5),
-                    "fusion_score": data.get('fusion_score', 5),
-                    "review_details": data.get('review_details', '{}')
-                }
-            )
-            return JsonResponse({"message": "Đã lưu biên bản thẩm vấn!"})
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
-            
-    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+def parse_to_dict(val):
+    """ Hàm nghiền dữ liệu: Ép mọi thứ về chuẩn JSON để Django không sập """
+    if isinstance(val, str):
+        try: return json.loads(val)
+        except: return {"notes": val}
+    return val
 
 @csrf_exempt
 def update_scenario_api(request):
-    """ Cỗ máy nuốt dữ liệu từ cả Scenario, Trade Ledger và System Audit """
+    """ Máy nghiền dữ liệu đa năng cho Scenario, Ledger và Audit """
     if request.method == 'POST':
         try:
             payload = json.loads(request.body)
             data = payload.get('input', payload)
             uuid_str = data.get('uuid')
-
             scenario = QuantScenario.objects.get(uuid=uuid_str)
 
-            # --- NHẬN DỮ LIỆU TỪ BUỒNG KHAI HỎA (SCENARIO) ---
-            if 'analysis' in data: scenario.analysis_details = data['analysis']
-            if 'checklist' in data: scenario.pre_trade_checklist = data['checklist']
-            if 'risk_data' in data: scenario.risk_data = data['risk_data']
-            if 'images' in data: scenario.images = data['images']
+            # Ép kiểu dữ liệu bằng parse_to_dict
+            if 'analysis' in data: scenario.analysis_details = parse_to_dict(data['analysis'])
+            if 'checklist' in data: scenario.pre_trade_checklist = parse_to_dict(data['checklist'])
+            if 'risk_data' in data: scenario.risk_data = parse_to_dict(data['risk_data'])
+            if 'images' in data: scenario.images = parse_to_dict(data['images'])
+            if 'review_data' in data: scenario.review_data = parse_to_dict(data['review_data'])
+            if 'result_images' in data: scenario.result_images = parse_to_dict(data['result_images'])
+            if 'analysis_details' in data: scenario.analysis_details = parse_to_dict(data['analysis_details']) 
+
+            # Các trường số và chữ thường
             if 'setup_id' in data: scenario.setup_id = data['setup_id']
             if 'entry_price' in data: scenario.entry_price = data['entry_price']
             if 'sl_price' in data: scenario.sl_price = data['sl_price']
@@ -1710,20 +1686,41 @@ def update_scenario_api(request):
             if 'dealing_range' in data: scenario.dealing_range = data['dealing_range']
             if 'narrative' in data: scenario.narrative = data['narrative']
             if 'scenario_type' in data: scenario.scenario_type = data['scenario_type']
-
-            # --- NHẬN DỮ LIỆU TỪ NHÀ XÁC & PHÒNG THẨM VẤN (LEDGER & AUDIT) ---
-            if 'review_data' in data: scenario.review_data = data['review_data']
-            if 'result_images' in data: scenario.result_images = data['result_images']
             if 'pnl' in data: scenario.pnl = data['pnl']
             if 'exit_price' in data: scenario.exit_price = data['exit_price']
-            if 'analysis_details' in data: scenario.analysis_details = data['analysis_details'] # Ghi chú Missed/Cancel
 
             scenario.save()
-            return JsonResponse({"message": "Đã đóng dấu hồ sơ thành công!"})
-            
-        except QuantScenario.DoesNotExist:
-            return JsonResponse({"error": "Không tìm thấy hồ sơ gốc"}, status=404)
+            return JsonResponse({"message": "Đã đóng dấu hồ sơ!"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
-            
     return JsonResponse({"error": "POST ONLY"}, status=405)
+
+@csrf_exempt
+def review_api(request):
+    """ Trạm thu phát dữ liệu cho phòng System Audit """
+    if request.method == 'GET':
+        week_start = request.GET.get('week_start')
+        try:
+            rev = WeeklyReview.objects.get(week_start_date=week_start)
+            return JsonResponse({
+                "fa_accuracy": rev.fa_accuracy, "ta_accuracy": rev.ta_accuracy, 
+                "fusion_score": rev.fusion_score, "review_details": rev.review_details
+            })
+        except WeeklyReview.DoesNotExist:
+            return JsonResponse({})
+    elif request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            WeeklyReview.objects.update_or_create(
+                week_start_date=data['week_start_date'],
+                account_id=data.get('account_id', 1),
+                defaults={
+                    "total_trades": data.get('total_trades', 0), "win_rate": data.get('win_rate', 0.0),
+                    "net_pnl": data.get('net_pnl', 0.0), "fa_accuracy": data.get('fa_accuracy', 5),
+                    "ta_accuracy": data.get('ta_accuracy', 5), "fusion_score": data.get('fusion_score', 5),
+                    "review_details": data.get('review_details', '{}')
+                }
+            )
+            return JsonResponse({"message": "Đã lưu biên bản thẩm vấn!"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
