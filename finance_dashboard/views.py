@@ -1605,3 +1605,26 @@ def mark_closed_api(request):
         AlphaSignal.objects.filter(id=ticket_id).update(status='CLOSED')
         return JsonResponse({"message": "Xác chết đã được dọn dẹp."})
     return JsonResponse({"error": "POST ONLY"}, status=405)
+
+@csrf_exempt
+def update_pnl_api(request):
+    """ MT5 liên tục khạc PnL (Lãi/Lỗ) thả nổi lên đám mây qua cổng này """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            positions = data.get('positions', [])
+            
+            for pos in positions:
+                ticker = pos.get('ticker')
+                pnl = pos.get('pnl')
+                
+                # Tìm lệnh đang chạy của cặp này và cập nhật tiền liên tục
+                AlphaSignal.objects.filter(
+                    ticker=ticker, 
+                    status__in=['ACTIVE', 'PENDING_EXEC', 'FILLED']
+                ).update(pnl=pnl)
+                
+            return JsonResponse({"message": "Đã cập nhật mạch máu PnL"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "POST ONLY"}, status=405)
