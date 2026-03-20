@@ -1649,60 +1649,94 @@ def update_pnl_api(request):
     return JsonResponse({"error": "POST ONLY"}, status=405)
 
 
-def parse_to_dict(val):
-    """ Hàm nghiền dữ liệu: Ép mọi thứ về chuẩn JSON để Django không sập """
-    if isinstance(val, str):
-        try: return json.loads(val)
-        except: return {"notes": val}
-    return val
+# HÀM BỔ TRỢ MỚI: MÁY XAY SINH TỐ V2
+def json_processor(data_field):
+    """Máy xay sinh tố v2: Ép kiểu tuyệt đối về object/array trước khi lưu.
+       Nếu frontend bị ngáo gửi chuỗi, lột sạch vỏ. 
+       Nếu gửi chuỗi thường (không phải JSON), nhét vào 'notes'. """
+    
+    # 1. Nếu nó đã là object hoặc mảng, trả về luôn
+    if isinstance(data_field, (dict, list)):
+        return data_field
 
-def safe_json_parse(val):
-    """Máy xay sinh tố: Cứu hộ dữ liệu bị bọc chuỗi nhiều lớp"""
-    if isinstance(val, str):
-        val = val.strip()
-        if not val or val in ["[]", "{}"]: return {}
+    # 2. Nếu nó là chuỗi, bắt đầu lột vỏ
+    if isinstance(data_field, str):
+        data_field = data_field.strip()
+        # Xử lý các trường hợp chuỗi rỗng
+        if not data_field or data_field in ["{}", "[]", "null", "undefined"]:
+            return {} 
+            
         try:
-            parsed = json.loads(val)
-            # Lột lớp vỏ thứ hai nếu Frontend bị ngáo
-            if isinstance(parsed, str):
-                return json.loads(parsed)
+            # Vòng lặp vỡ lòng: Tiếp tục lột nếu bên trong vẫn là chuỗi (stringify nhiều lần)
+            parsed = json.loads(data_field)
+            while isinstance(parsed, str):
+                parsed = json.loads(parsed)
+            
+            # Xử lý trường hợp json.loads trả về null
+            if parsed is None:
+                return {}
             return parsed
-        except Exception:
-            # Nếu nó chỉ là chữ bình thường, nhét vào ghi chú
-            return {"notes": val}
-    return val
+        except json.JSONDecodeError:
+            # 3. Nếu nó là chuỗi thường (ví dụ: 'some note text'), nhét vào object ghi chú
+            return {"notes": data_field}
+            
+    # 4. Nếu là kiểu dữ liệu khác (int, float, bool), bọc lại thành object
+    return {"notes": str(data_field)}
 
+# HÀM UPDATE_SCENARIO_API MỚI - ĐÃ ĐƯỢC LÊN ĐỜI
 @csrf_exempt
 def update_scenario_api(request):
-    """ Nhận mọi thứ từ Frontend, gột rửa sạch sẽ rồi mới cất """
+    """ Nhận mọi thứ từ Frontend, gột rửa, rồi đổ bê tông vào Két sắt. """
     if request.method == 'POST':
         try:
             payload = json.loads(request.body)
+            # Hỗ trợ cả payload phẳng và payload được bọc trong 'input'
             data = payload.get('input', payload)
+            
             uuid_str = data.get('uuid')
+            if not uuid_str:
+                return JsonResponse({"error": "Cần UUID để update!"}, status=400)
+                
+            # Sử dụng .get() để nổ exception nếu không tìm thấy, giúp ta debug dễ hơn
             scenario = QuantScenario.objects.get(uuid=uuid_str)
 
-            # Chia tách mảng trường dữ liệu
+            # --- PHẦN ÉP KIỂU JSON: ĐẬP TAN LỖI 'MẤT TRÍ NHỚ' ---
+            # Danh sách các trường JSONField
             json_fields = ['analysis_details', 'pre_trade_checklist', 'risk_data', 'images', 'result_images', 'review_data']
-            standard_fields = ['setup_id', 'entry_price', 'sl_price', 'tp_price', 'volume', 'pnl', 'exit_price', 'narrative', 'scenario_type', 'htf_trend', 'market_phase', 'dealing_range']
             
-            # Xử lý trường JSON (Ép kiểu tuyệt đối)
+            # Lặp qua từng trường và ép kiểu qua Máy xay sinh tố v2
             for field in json_fields:
                 if field in data:
-                    setattr(scenario, field, safe_json_parse(data[field]))
+                    # Ép kiểu tuyệt đối trước khi gán
+                    setattr(scenario, field, json_processor(data[field]))
 
-            # Xử lý trường văn bản/số thông thường
+            # --- PHẦN XỬ LÝ TRƯỜNG VĂN BẢN/SỐ THÔNG THƯỜNG ---
+            # Danh sách các trường thường
+            standard_fields = [
+                'setup_id', 'entry_price', 'sl_price', 'tp_price', 'volume', 
+                'pnl', 'exit_price', 'narrative', 'scenario_type', 'htf_trend', 
+                'market_phase', 'dealing_range', 'status'
+            ]
+            
+            # Xử lý các trường thông thường
             for field in standard_fields:
                 if field in data:
                     setattr(scenario, field, data[field])
 
+            # ĐỔ BÊ TÔNG!
             scenario.save()
-            return JsonResponse({"message": "Đã đổ bê tông vào sổ cái an toàn!"})
+            return JsonResponse({
+                "message": "Đã đổ bê tông vào sổ cái an toàn!",
+                "uuid": uuid_str
+            })
             
+        except QuantScenario.DoesNotExist:
+            return JsonResponse({"error": f"Không tìm thấy Scenario với UUID: {uuid_str}"}, status=404)
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            # Gửi lỗi chi tiết về Frontend để sếp dễ debug
+            return JsonResponse({"error": f"Lỗi nội bộ server: {str(e)}"}, status=500)
             
-    return JsonResponse({"error": "POST ONLY"}, status=405)
+    return JsonResponse({"error": "Chỉ chấp nhận phương thức POST"}, status=405)
 
 @csrf_exempt
 def review_api(request):
