@@ -46,13 +46,16 @@ urlpatterns = [
     path("api/dashboard/stats/", api.get_dashboard_stats, name="api_get_dashboard_stats"),
 
     # ==========================================
-    # PHẦN 2: SIGNAL ENGINE
+    # PHẦN 2: SIGNAL ENGINE & SCENARIOS
     # ==========================================
     path("api/settings/", api.get_app_settings, name="api_get_app_settings"),
     path("api/portfolio/state/", api.get_portfolio_state, name="api_get_portfolio_state"),
     path("api/scenarios/", api.get_scenarios, name="api_get_scenarios"),
     path("api/scenarios/create/", api.create_scenario, name="api_create_scenario"),
-    path("api/scenarios/update/", api.update_scenario_full, name="api_update_scenario_full"),
+    
+    # [VÙNG LÕI ĐÃ ĐƯỢC BỌC THÉP] Đưa luồng cập nhật về hàm views.update_scenario_api xịn xò
+    path("api/scenarios/update/", views.update_scenario_api, name="api_update_scenario_full"),
+    
     path("api/scenarios/status/", api.set_scenario_status, name="api_set_scenario_status"),
     path("api/scenarios/delete/", api.delete_scenario, name="api_delete_scenario"),
     path("api/scenarios/execute/", api.execute_trade, name="api_execute_trade"),
@@ -75,6 +78,9 @@ urlpatterns = [
     path("api/review/data/", api.get_weekly_review_data, name="api_review_data"),
     path("api/review/save/", api.save_weekly_review_data, name="api_review_save"),
     path("api/review/missed/", api.handle_missed_trades, name="api_review_missed"),
+    
+    # [VÙNG LÕI ĐÃ ĐƯỢC BỌC THÉP] Đưa luồng review về views.review_api
+    path('api/reviews/', views.review_api, name='api_reviews'),
 
     # PHẦN 7: MONITOR
     path("api/monitor/active/", api.get_active_trades, name="api_monitor_active"),
@@ -86,27 +92,26 @@ urlpatterns = [
 
     # PHẦN 9: CONFIG & STATE
     path("api/config/state/", api.manage_system_config, name="api_config_state"),
-    path("api/portfolio/state/", api.get_portfolio_state, name="api_portfolio_state"),
     path("api/settings/", api.get_settings, name="api_settings_old"),
 
     # PART 10: DASHBOARD
     path("api/dashboard/metrics/", api.get_dashboard_metrics, name="api_dashboard_metrics"),
     
-    # API Endpoints cho React hút máu
-    path('api/config/state/', views.config_state_api, name='api_config_state'),
-    path('api/dashboard/metrics/', views.dashboard_metrics_api, name='api_dashboard_metrics'),
+    # ==========================================
+    # CÁC API ENDPOINT MẶT TIỀN KHÁC (VIEWS)
+    # ==========================================
+    path('api/config/state/legacy/', views.config_state_api, name='api_config_state_legacy'),
+    path('api/dashboard/metrics/legacy/', views.dashboard_metrics_api, name='api_dashboard_metrics_legacy'),
 
     path('api/mt5/execution/', views.mt5_execution_node, name='api_mt5_execution'),
-   path('api/mt5/radar/', views.radar_monitor_api, name='api_radar_monitor'),
+    path('api/mt5/radar/', views.radar_monitor_api, name='api_radar_monitor'),
     path('api/mt5/check_status/', views.check_ticket_status, name='api_check_status'),
     path('api/mt5/approve/', views.approve_ticket_api, name='api_approve_ticket'),
     
-    # === CÁC NÚT THẮT ĐÃ ĐƯỢC CHỮA CHÁY ===
     path('api/mt5/fetch_approved/', views.get_approved_tickets, name='api_fetch_approved'),
     path('api/mt5/mark_executed/', views.mark_executed, name='api_mark_executed'),
     path('api/outlook/sync/', views.sync_outlook_api, name='api_sync_outlook'),
     
-    # Đừng quên Cầu Nối Vạn Năng (Khai hỏa khẩn cấp) sếp đúc hôm trước:
     path('api/mt5/direct_fire/', views.direct_fire_api, name='api_direct_fire'),
     path('api/outlook/current/', views.get_current_outlook, name='api_get_outlook'),
 
@@ -115,7 +120,4 @@ urlpatterns = [
     path('api/mt5/mark_closed/', views.mark_closed_api, name='api_mark_closed'),
 
     path('api/mt5/update_pnl/', views.update_pnl_api, name='api_update_pnl'),
-    path('api/reviews/', views.review_api, name='api_reviews'),
-    path('api/scenarios/update/', views.update_scenario_api, name='api_update_scenario'),
-       
 ]
