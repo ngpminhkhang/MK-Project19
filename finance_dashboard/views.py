@@ -1539,4 +1539,22 @@ def sync_outlook_api(request):
             return JsonResponse({"message": "Ngọn Hải Đăng đã thắp sáng!"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+        
+@csrf_exempt
+def direct_fire_api(request):
+    """ Cầu nối vạn năng. Biến lệnh Khẩn Cấp (Market Bypass) thành đạn cho MT5 """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            # Ép hệ thống tạo tờ trình ĐÃ DUYỆT nhét vào mồm MT5
+            signal = AlphaSignal.objects.create(
+                ticker=data.get('ticker'),
+                signal_direction=data.get('direction'),
+                ceo_approved_lot=float(data.get('volume', 0)),
+                status='APPROVED'
+            )
+            return JsonResponse({"message": "Lệnh đã nạp vào nòng súng MT5!"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "POST ONLY"}, status=405)
     
