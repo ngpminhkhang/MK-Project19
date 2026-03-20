@@ -1608,30 +1608,44 @@ def mark_closed_api(request):
 
 @csrf_exempt
 def update_pnl_api(request):
-    """ MT5 khạc tiền về Két, chia đều cho cả Radar và Scenario """
+    """ Cổng nhận tiền Bọc Thép - Không bao giờ sập (Bypass 500) """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             positions = data.get('positions', [])
+            error_logs = [] # Túi chứa lời trăn trối của Django
             
             for pos in positions:
                 ticker = pos.get('ticker')
                 pnl = pos.get('pnl')
                 
-                # 1. Bơm máu cho mặt trận Radar
-                AlphaSignal.objects.filter(
-                    ticker=ticker, 
-                    status__in=['ACTIVE', 'PENDING_EXEC', 'FILLED']
-                ).update(pnl=pnl)
+                # 1. Bơm máu cho mặt trận Radar (AlphaSignal)
+                try:
+                    from .models import AlphaSignal
+                    AlphaSignal.objects.filter(
+                        ticker=ticker, 
+                        status__in=['ACTIVE', 'PENDING_EXEC', 'FILLED']
+                    ).update(pnl=pnl)
+                except Exception as e1:
+                    error_logs.append(f"Lỗi Radar: {str(e1)}")
                 
-                # 2. BƠM MÁU CHO MẶT TRẬN SCENARIO (Cái mà sếp đang cần!)
-                # Chú ý: Bảng Scenario của sếp dùng tên cột là 'pair' thay vì 'ticker'
-                Scenario.objects.filter(
-                    pair=ticker, 
-                    status__in=['PENDING_EXEC', 'ACTIVE', 'FILLED']
-                ).update(pnl=pnl)
+                # 2. Bơm máu cho mặt trận Scenario
+                try:
+                    # LƯU Ý: Nếu sếp đặt tên Model khác, tự thay chữ 'Scenario' nhé!
+                    from .models import Scenario 
+                    Scenario.objects.filter(
+                        pair=ticker, # Đảm bảo cột chứa tên cặp tiền là 'pair'
+                        status__in=['PENDING_EXEC', 'ACTIVE', 'FILLED']
+                    ).update(pnl=pnl)
+                except Exception as e2:
+                    error_logs.append(f"Lỗi Scenario: {str(e2)}")
+
+            # Trả về mã 200 để EA yên tâm, nhưng kèm theo lời trăn trối (nếu có)
+            if error_logs:
+                return JsonResponse({"status": "partial_success", "errors": error_logs}, status=200)
                 
-            return JsonResponse({"message": "Mạch máu PnL đã thông suốt toàn hệ thống!"})
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            return JsonResponse({"status": "success", "message": "Mạch máu đã thông!"})
+        except Exception as fatal_error:
+            return JsonResponse({"error": f"Sập nguồn: {str(fatal_error)}"}, status=500)
+            
     return JsonResponse({"error": "POST ONLY"}, status=405)
