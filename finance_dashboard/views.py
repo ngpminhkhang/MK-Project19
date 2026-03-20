@@ -1658,7 +1658,7 @@ def parse_to_dict(val):
 
 @csrf_exempt
 def update_scenario_api(request):
-    """ Máy nghiền dữ liệu đa năng cho Scenario, Ledger và Audit """
+    """ Máy xay sinh tố: Nhai trực tiếp Object từ Frontend """
     if request.method == 'POST':
         try:
             payload = json.loads(request.body)
@@ -1666,31 +1666,26 @@ def update_scenario_api(request):
             uuid_str = data.get('uuid')
             scenario = QuantScenario.objects.get(uuid=uuid_str)
 
-            # Ép kiểu dữ liệu bằng parse_to_dict
-            if 'analysis' in data: scenario.analysis_details = parse_to_dict(data['analysis'])
-            if 'checklist' in data: scenario.pre_trade_checklist = parse_to_dict(data['checklist'])
-            if 'risk_data' in data: scenario.risk_data = parse_to_dict(data['risk_data'])
-            if 'images' in data: scenario.images = parse_to_dict(data['images'])
-            if 'review_data' in data: scenario.review_data = parse_to_dict(data['review_data'])
-            if 'result_images' in data: scenario.result_images = parse_to_dict(data['result_images'])
-            if 'analysis_details' in data: scenario.analysis_details = parse_to_dict(data['analysis_details']) 
+            # GÁn TRỰC TIẾP DATA (Vì json.loads đã biến mọi thứ thành Dict/List)
+            if 'analysis_details' in data: scenario.analysis_details = data['analysis_details']
+            if 'pre_trade_checklist' in data: scenario.pre_trade_checklist = data['pre_trade_checklist']
+            if 'risk_data' in data: scenario.risk_data = data['risk_data']
+            if 'images' in data: scenario.images = data['images']
+            if 'result_images' in data: scenario.result_images = data['result_images']
+            if 'review_data' in data: scenario.review_data = data['review_data']
 
-            # Các trường số và chữ thường
             if 'setup_id' in data: scenario.setup_id = data['setup_id']
             if 'entry_price' in data: scenario.entry_price = data['entry_price']
             if 'sl_price' in data: scenario.sl_price = data['sl_price']
             if 'tp_price' in data: scenario.tp_price = data['tp_price']
             if 'volume' in data: scenario.volume = data['volume']
-            if 'htf_trend' in data: scenario.htf_trend = data['htf_trend']
-            if 'market_phase' in data: scenario.market_phase = data['market_phase']
-            if 'dealing_range' in data: scenario.dealing_range = data['dealing_range']
-            if 'narrative' in data: scenario.narrative = data['narrative']
-            if 'scenario_type' in data: scenario.scenario_type = data['scenario_type']
             if 'pnl' in data: scenario.pnl = data['pnl']
             if 'exit_price' in data: scenario.exit_price = data['exit_price']
+            if 'narrative' in data: scenario.narrative = data['narrative']
+            if 'scenario_type' in data: scenario.scenario_type = data['scenario_type']
 
             scenario.save()
-            return JsonResponse({"message": "Đã đóng dấu hồ sơ!"})
+            return JsonResponse({"message": "Đã đổ bê tông dữ liệu!"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "POST ONLY"}, status=405)
