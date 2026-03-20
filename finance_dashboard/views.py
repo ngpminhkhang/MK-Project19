@@ -1557,4 +1557,22 @@ def direct_fire_api(request):
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "POST ONLY"}, status=405)
-    
+
+@csrf_exempt
+def get_current_outlook(request):
+    """ Cửa XUẤT: Cho phép Scenario lấy Ngọn Hải Đăng về xem """
+    if request.method == 'GET':
+        week_start = request.GET.get('week_start')
+        try:
+            outlook = WeeklyOutlook.objects.get(week_start=week_start)
+            return JsonResponse({
+                "market_sentiment": outlook.market_sentiment,
+                "weekly_bias": outlook.weekly_bias,
+                "execution_script": outlook.execution_script
+            })
+        except WeeklyOutlook.DoesNotExist:
+            return JsonResponse({
+                "market_sentiment": "MIXED", 
+                "weekly_bias": "NEUTRAL", 
+                "execution_script": ""
+            })   

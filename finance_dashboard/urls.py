@@ -108,5 +108,6 @@ urlpatterns = [
     
     # Đừng quên Cầu Nối Vạn Năng (Khai hỏa khẩn cấp) sếp đúc hôm trước:
     path('api/mt5/direct_fire/', views.direct_fire_api, name='api_direct_fire'),
+    path('api/outlook/current/', views.get_current_outlook, name='api_get_outlook'),
 
 ]
