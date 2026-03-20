@@ -110,4 +110,8 @@ urlpatterns = [
     path('api/mt5/direct_fire/', views.direct_fire_api, name='api_direct_fire'),
     path('api/outlook/current/', views.get_current_outlook, name='api_get_outlook'),
 
+    path('api/mt5/close_trade/', views.close_trade_api, name='api_close_trade'),
+    path('api/mt5/fetch_close/', views.fetch_close_commands, name='api_fetch_close'),
+    path('api/mt5/mark_closed/', views.mark_closed_api, name='api_mark_closed'),
+
 ]

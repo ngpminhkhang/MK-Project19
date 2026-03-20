@@ -1575,3 +1575,33 @@ def get_current_outlook(request):
             })
         except WeeklyOutlook.DoesNotExist:
             return JsonResponse({"error": "No data found"})   
+
+@csrf_exempt
+def close_trade_api(request):
+    """ Web UI bấm nút Đỏ -> Gọi xuống đây để phát lệnh Rút Quân """
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        ticker = data.get('ticker')
+        # Tìm lệnh đang chạy của cặp này, gắn mác CHỜ ĐÓNG LỆNH
+        AlphaSignal.objects.filter(ticker=ticker, status='EXECUTED').update(status='PENDING_CLOSE')
+        return JsonResponse({"message": "Lệnh rút quân đã xuống hầm!"})
+    return JsonResponse({"error": "POST ONLY"}, status=405)
+
+@csrf_exempt
+def fetch_close_commands(request):
+    """ MT5 liên tục vào đây hóng xem có lệnh Rút Quân nào không """
+    if request.method == 'GET':
+        signal = AlphaSignal.objects.filter(status='PENDING_CLOSE').first()
+        if signal:
+            return JsonResponse({"ticker": signal.ticker, "ticket_id": signal.id})
+        return JsonResponse({"message": "Chưa có lệnh rút quân."})
+
+@csrf_exempt
+def mark_closed_api(request):
+    """ MT5 đóng lệnh xong -> Gọi vào đây để báo cáo gạch tên khỏi sổ cái """
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        ticket_id = data.get('ticket_id')
+        AlphaSignal.objects.filter(id=ticket_id).update(status='CLOSED')
+        return JsonResponse({"message": "Xác chết đã được dọn dẹp."})
+    return JsonResponse({"error": "POST ONLY"}, status=405)
