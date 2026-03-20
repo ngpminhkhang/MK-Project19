@@ -22,7 +22,8 @@ from django.template.loader import render_to_string
 from tenacity import retry, stop_after_attempt, wait_fixed
 import logging
 from django.views.decorators.csrf import csrf_exempt
-from .models import AlphaSignal, MacroDirective, QuantScenario
+from .models import AlphaSignal, MacroDirective
+from .models import QuantScenario
 from .risk_engine import FundManager
 from .models import WeeklyReview, MissedTrade
 logging.basicConfig(level=logging.DEBUG)
@@ -1682,3 +1683,47 @@ def review_api(request):
             return JsonResponse({"error": str(e)}, status=500)
             
     return JsonResponse({"error": "Method not allowed"}, status=405)
+
+@csrf_exempt
+def update_scenario_api(request):
+    """ Cỗ máy nuốt dữ liệu từ cả Scenario, Trade Ledger và System Audit """
+    if request.method == 'POST':
+        try:
+            payload = json.loads(request.body)
+            data = payload.get('input', payload)
+            uuid_str = data.get('uuid')
+
+            scenario = QuantScenario.objects.get(uuid=uuid_str)
+
+            # --- NHẬN DỮ LIỆU TỪ BUỒNG KHAI HỎA (SCENARIO) ---
+            if 'analysis' in data: scenario.analysis_details = data['analysis']
+            if 'checklist' in data: scenario.pre_trade_checklist = data['checklist']
+            if 'risk_data' in data: scenario.risk_data = data['risk_data']
+            if 'images' in data: scenario.images = data['images']
+            if 'setup_id' in data: scenario.setup_id = data['setup_id']
+            if 'entry_price' in data: scenario.entry_price = data['entry_price']
+            if 'sl_price' in data: scenario.sl_price = data['sl_price']
+            if 'tp_price' in data: scenario.tp_price = data['tp_price']
+            if 'volume' in data: scenario.volume = data['volume']
+            if 'htf_trend' in data: scenario.htf_trend = data['htf_trend']
+            if 'market_phase' in data: scenario.market_phase = data['market_phase']
+            if 'dealing_range' in data: scenario.dealing_range = data['dealing_range']
+            if 'narrative' in data: scenario.narrative = data['narrative']
+            if 'scenario_type' in data: scenario.scenario_type = data['scenario_type']
+
+            # --- NHẬN DỮ LIỆU TỪ NHÀ XÁC & PHÒNG THẨM VẤN (LEDGER & AUDIT) ---
+            if 'review_data' in data: scenario.review_data = data['review_data']
+            if 'result_images' in data: scenario.result_images = data['result_images']
+            if 'pnl' in data: scenario.pnl = data['pnl']
+            if 'exit_price' in data: scenario.exit_price = data['exit_price']
+            if 'analysis_details' in data: scenario.analysis_details = data['analysis_details'] # Ghi chú Missed/Cancel
+
+            scenario.save()
+            return JsonResponse({"message": "Đã đóng dấu hồ sơ thành công!"})
+            
+        except QuantScenario.DoesNotExist:
+            return JsonResponse({"error": "Không tìm thấy hồ sơ gốc"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+            
+    return JsonResponse({"error": "POST ONLY"}, status=405)

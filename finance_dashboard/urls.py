@@ -116,5 +116,6 @@ urlpatterns = [
 
     path('api/mt5/update_pnl/', views.update_pnl_api, name='api_update_pnl'),
     path('api/reviews/', views.review_api, name='api_reviews'),
+    path('api/scenarios/update/', views.update_scenario_api, name='api_update_scenario'),
        
 ]
