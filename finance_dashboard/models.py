@@ -355,6 +355,7 @@ class WeeklyOutlook(models.Model):
     weekly_bias = models.CharField(max_length=50, default="NEUTRAL")    # BUY / SELL / NEUTRAL
     execution_script = models.TextField(blank=True, null=True)          # Đẩy sang trang Review
     
+    fa_bias = models.TextField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

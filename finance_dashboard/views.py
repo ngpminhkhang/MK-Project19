@@ -1524,7 +1524,7 @@ def mark_executed(request):
 
 @csrf_exempt
 def sync_outlook_api(request):
-    """ Nhận báo cáo Vĩ mô từ Web """
+    """ Nhận báo cáo Vĩ mô từ Web và lưu vào Két """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -1533,12 +1533,14 @@ def sync_outlook_api(request):
                 defaults={
                     'market_sentiment': data.get('market_sentiment', 'MIXED'),
                     'weekly_bias': data.get('weekly_bias', 'NEUTRAL'),
-                    'execution_script': data.get('execution_script', '')
+                    'execution_script': data.get('execution_script', ''),
+                    'fa_bias': data.get('fa_bias', '{}') # Nhận cục JSON khổng lồ
                 }
             )
             return JsonResponse({"message": "Ngọn Hải Đăng đã thắp sáng!"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "POST ONLY"}, status=405)
         
 @csrf_exempt
 def direct_fire_api(request):
@@ -1560,7 +1562,7 @@ def direct_fire_api(request):
 
 @csrf_exempt
 def get_current_outlook(request):
-    """ Cửa XUẤT: Cho phép Scenario lấy Ngọn Hải Đăng về xem """
+    """ Bắn dữ liệu lên mặt tiền khi sếp chuyển Tab """
     if request.method == 'GET':
         week_start = request.GET.get('week_start')
         try:
@@ -1568,11 +1570,8 @@ def get_current_outlook(request):
             return JsonResponse({
                 "market_sentiment": outlook.market_sentiment,
                 "weekly_bias": outlook.weekly_bias,
-                "execution_script": outlook.execution_script
+                "execution_script": outlook.execution_script,
+                "fa_bias": outlook.fa_bias # Bắn cục JSON lên
             })
         except WeeklyOutlook.DoesNotExist:
-            return JsonResponse({
-                "market_sentiment": "MIXED", 
-                "weekly_bias": "NEUTRAL", 
-                "execution_script": ""
-            })   
+            return JsonResponse({"error": "No data found"})   
