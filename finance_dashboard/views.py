@@ -24,6 +24,7 @@ import logging
 from django.views.decorators.csrf import csrf_exempt
 from .models import AlphaSignal, MacroDirective, QuantScenario
 from .risk_engine import FundManager
+from .models import WeeklyReview, MissedTrade
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -1645,3 +1646,39 @@ def update_pnl_api(request):
             return JsonResponse({"error": f"Sập nguồn: {str(fatal_error)}"}, status=500)
             
     return JsonResponse({"error": "POST ONLY"}, status=405)
+
+@csrf_exempt
+def review_api(request):
+    """ Bơm và hút dữ liệu cho phòng Thẩm Vấn (System Audit) """
+    if request.method == 'GET':
+        week_start = request.GET.get('week_start')
+        try:
+            rev = WeeklyReview.objects.get(week_start_date=week_start)
+            return JsonResponse({
+                "fa_accuracy": rev.fa_accuracy, "ta_accuracy": rev.ta_accuracy, 
+                "fusion_score": rev.fusion_score, "review_details": rev.review_details
+            })
+        except WeeklyReview.DoesNotExist:
+            return JsonResponse({})
+            
+    elif request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            WeeklyReview.objects.update_or_create(
+                week_start_date=data['week_start_date'],
+                account_id=data.get('account_id', 1),
+                defaults={
+                    "total_trades": data.get('total_trades', 0),
+                    "win_rate": data.get('win_rate', 0.0),
+                    "net_pnl": data.get('net_pnl', 0.0),
+                    "fa_accuracy": data.get('fa_accuracy', 5),
+                    "ta_accuracy": data.get('ta_accuracy', 5),
+                    "fusion_score": data.get('fusion_score', 5),
+                    "review_details": data.get('review_details', '{}')
+                }
+            )
+            return JsonResponse({"message": "Đã lưu biên bản thẩm vấn!"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+            
+    return JsonResponse({"error": "Method not allowed"}, status=405)
