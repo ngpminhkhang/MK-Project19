@@ -1608,7 +1608,7 @@ def mark_closed_api(request):
 
 @csrf_exempt
 def update_pnl_api(request):
-    """ MT5 liên tục khạc PnL (Lãi/Lỗ) thả nổi lên đám mây qua cổng này """
+    """ MT5 khạc tiền về Két, chia đều cho cả Radar và Scenario """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -1618,13 +1618,20 @@ def update_pnl_api(request):
                 ticker = pos.get('ticker')
                 pnl = pos.get('pnl')
                 
-                # Tìm lệnh đang chạy của cặp này và cập nhật tiền liên tục
+                # 1. Bơm máu cho mặt trận Radar
                 AlphaSignal.objects.filter(
                     ticker=ticker, 
                     status__in=['ACTIVE', 'PENDING_EXEC', 'FILLED']
                 ).update(pnl=pnl)
                 
-            return JsonResponse({"message": "Đã cập nhật mạch máu PnL"})
+                # 2. BƠM MÁU CHO MẶT TRẬN SCENARIO (Cái mà sếp đang cần!)
+                # Chú ý: Bảng Scenario của sếp dùng tên cột là 'pair' thay vì 'ticker'
+                Scenario.objects.filter(
+                    pair=ticker, 
+                    status__in=['PENDING_EXEC', 'ACTIVE', 'FILLED']
+                ).update(pnl=pnl)
+                
+            return JsonResponse({"message": "Mạch máu PnL đã thông suốt toàn hệ thống!"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
     return JsonResponse({"error": "POST ONLY"}, status=405)
