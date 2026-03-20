@@ -1656,9 +1656,25 @@ def parse_to_dict(val):
         except: return {"notes": val}
     return val
 
+def safe_json_parse(val):
+    """Máy xay sinh tố: Cứu hộ dữ liệu bị bọc chuỗi nhiều lớp"""
+    if isinstance(val, str):
+        val = val.strip()
+        if not val or val in ["[]", "{}"]: return {}
+        try:
+            parsed = json.loads(val)
+            # Lột lớp vỏ thứ hai nếu Frontend bị ngáo
+            if isinstance(parsed, str):
+                return json.loads(parsed)
+            return parsed
+        except Exception:
+            # Nếu nó chỉ là chữ bình thường, nhét vào ghi chú
+            return {"notes": val}
+    return val
+
 @csrf_exempt
 def update_scenario_api(request):
-    """ Nhận mọi thứ dạng String bọc kín từ Frontend, không tự ý sửa đổi """
+    """ Nhận mọi thứ từ Frontend, gột rửa sạch sẽ rồi mới cất """
     if request.method == 'POST':
         try:
             payload = json.loads(request.body)
@@ -1666,18 +1682,22 @@ def update_scenario_api(request):
             uuid_str = data.get('uuid')
             scenario = QuantScenario.objects.get(uuid=uuid_str)
 
-            # Quét và lưu trực tiếp mọi trường dữ liệu
-            fields = ['analysis_details', 'pre_trade_checklist', 'risk_data', 'images', 
-                      'result_images', 'review_data', 'setup_id', 'entry_price', 'sl_price', 
-                      'tp_price', 'volume', 'pnl', 'exit_price', 'narrative', 'scenario_type', 
-                      'htf_trend', 'market_phase', 'dealing_range']
+            # Chia tách mảng trường dữ liệu
+            json_fields = ['analysis_details', 'pre_trade_checklist', 'risk_data', 'images', 'result_images', 'review_data']
+            standard_fields = ['setup_id', 'entry_price', 'sl_price', 'tp_price', 'volume', 'pnl', 'exit_price', 'narrative', 'scenario_type', 'htf_trend', 'market_phase', 'dealing_range']
             
-            for field in fields:
+            # Xử lý trường JSON (Ép kiểu tuyệt đối)
+            for field in json_fields:
+                if field in data:
+                    setattr(scenario, field, safe_json_parse(data[field]))
+
+            # Xử lý trường văn bản/số thông thường
+            for field in standard_fields:
                 if field in data:
                     setattr(scenario, field, data[field])
 
             scenario.save()
-            return JsonResponse({"message": "Đã lưu sổ cái an toàn!"})
+            return JsonResponse({"message": "Đã đổ bê tông vào sổ cái an toàn!"})
             
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
