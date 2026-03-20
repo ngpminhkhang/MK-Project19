@@ -22,7 +22,7 @@ from django.template.loader import render_to_string
 from tenacity import retry, stop_after_attempt, wait_fixed
 import logging
 from django.views.decorators.csrf import csrf_exempt
-from .models import AlphaSignal, MacroDirective
+from .models import AlphaSignal, MacroDirective, QuantScenario
 from .risk_engine import FundManager
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -1608,20 +1608,19 @@ def mark_closed_api(request):
 
 @csrf_exempt
 def update_pnl_api(request):
-    """ Cổng nhận tiền Bọc Thép - Không bao giờ sập (Bypass 500) """
+    """ Cổng nhận tiền Bọc Thép """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             positions = data.get('positions', [])
-            error_logs = [] # Túi chứa lời trăn trối của Django
+            error_logs = [] 
             
             for pos in positions:
                 ticker = pos.get('ticker')
                 pnl = pos.get('pnl')
                 
-                # 1. Bơm máu cho mặt trận Radar (AlphaSignal)
+                # 1. Bơm máu cho mặt trận Radar
                 try:
-                    from .models import AlphaSignal
                     AlphaSignal.objects.filter(
                         ticker=ticker, 
                         status__in=['ACTIVE', 'PENDING_EXEC', 'FILLED']
@@ -1629,22 +1628,19 @@ def update_pnl_api(request):
                 except Exception as e1:
                     error_logs.append(f"Lỗi Radar: {str(e1)}")
                 
-                # 2. Bơm máu cho mặt trận Scenario
+                # 2. Bơm máu cho mặt trận Kịch bản (Dùng đúng tên QuantScenario)
                 try:
-                    # LƯU Ý: Nếu sếp đặt tên Model khác, tự thay chữ 'Scenario' nhé!
-                    from .models import Scenario 
-                    Scenario.objects.filter(
-                        pair=ticker, # Đảm bảo cột chứa tên cặp tiền là 'pair'
+                    QuantScenario.objects.filter(
+                        pair=ticker, # Cột tên cặp tiền bên bảng này sếp đặt là 'pair'
                         status__in=['PENDING_EXEC', 'ACTIVE', 'FILLED']
                     ).update(pnl=pnl)
                 except Exception as e2:
-                    error_logs.append(f"Lỗi Scenario: {str(e2)}")
+                    error_logs.append(f"Lỗi Kịch Bản: {str(e2)}")
 
-            # Trả về mã 200 để EA yên tâm, nhưng kèm theo lời trăn trối (nếu có)
             if error_logs:
                 return JsonResponse({"status": "partial_success", "errors": error_logs}, status=200)
                 
-            return JsonResponse({"status": "success", "message": "Mạch máu đã thông!"})
+            return JsonResponse({"status": "success", "message": "Mạch máu đã thông suốt!"})
         except Exception as fatal_error:
             return JsonResponse({"error": f"Sập nguồn: {str(fatal_error)}"}, status=500)
             

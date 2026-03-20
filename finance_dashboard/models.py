@@ -7,23 +7,17 @@ import uuid
 # ==========================================
 # PHẦN 1: WEBSITE CŨ (GIỮ NGUYÊN KHÔNG ĐỤNG CHẠM)
 # ==========================================
-
 class ForexPair(models.Model):
     pair = models.CharField(max_length=10, unique=True)
     current_rate = models.DecimalField(max_digits=12, decimal_places=5, null=True)
     last_updated = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.pair
-
+    def __str__(self): return self.pair
     class Meta:
         ordering = ["pair"]
         verbose_name_plural = "Forex Pairs"
-
     @property
     def display_name(self):
-        if len(self.pair) == 6:
-            return f"{self.pair[:3]}/{self.pair[3:]}"
+        if len(self.pair) == 6: return f"{self.pair[:3]}/{self.pair[3:]}"
         return self.pair
 
 class MacroData(models.Model):
@@ -31,26 +25,14 @@ class MacroData(models.Model):
     value = models.DecimalField(max_digits=10, decimal_places=2)
     country = models.CharField(max_length=50)
     date = models.DateField()
-
-    def __str__(self):
-        return f"{self.indicator} - {self.country} - {self.date}"
-
+    def __str__(self): return f"{self.indicator} - {self.country} - {self.date}"
     class Meta:
         ordering = ["date"]
         verbose_name_plural = "Macro Data"
 
 class Insight(models.Model):
-    CATEGORY_CHOICES = [
-        ("currency", "Currency"),
-        ("stock", "Stock"),
-        ("summary", "Summary"),
-        ("other", "Other"),
-    ]
-    RESULT_CHOICES = [
-        ("positive", "Positive"),
-        ("negative", "Negative"),
-        ("neutral", "Neutral"),
-    ]
+    CATEGORY_CHOICES = [("currency", "Currency"), ("stock", "Stock"), ("summary", "Summary"), ("other", "Other")]
+    RESULT_CHOICES = [("positive", "Positive"), ("negative", "Negative"), ("neutral", "Neutral")]
     title = models.CharField(max_length=200)
     summary = models.TextField()
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default="other")
@@ -68,40 +50,25 @@ class Insight(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     attached_file = models.FileField(upload_to='insight_attachments/%Y/%m/%d/', blank=True, null=True)
     attached_image = models.ImageField(upload_to='insight_images/%Y/%m/%d/', blank=True, null=True)
-
-    def __str__(self):
-        return self.title
-
+    def __str__(self): return self.title
     class Meta:
         ordering = ["-date"]
         verbose_name_plural = "Insights"
-
     @property
-    def has_attachment(self):
-        return bool(self.attached_file or self.attached_image)
-
+    def has_attachment(self): return bool(self.attached_file or self.attached_image)
     @property
     def is_image(self):
-        if self.attached_image:
-            return True
-        if self.attached_file:
-            return self.attached_file.name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp'))
+        if self.attached_image: return True
+        if self.attached_file: return self.attached_file.name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp'))
         return False
-
     @property
     def file_name(self):
-        if self.attached_file:
-            return self.attached_file.name.split('/')[-1]
-        if self.attached_image:
-            return self.attached_image.name.split('/')[-1]
+        if self.attached_file: return self.attached_file.name.split('/')[-1]
+        if self.attached_image: return self.attached_image.name.split('/')[-1]
         return None
 
 class Portfolio(models.Model):
-    CATEGORY_CHOICES = [
-        ("currency", "Currency"),
-        ("stock", "Stock"),
-        ("other", "Other"),
-    ]
+    CATEGORY_CHOICES = [("currency", "Currency"), ("stock", "Stock"), ("other", "Other")]
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=50)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default="currency")
@@ -110,15 +77,11 @@ class Portfolio(models.Model):
     date_added = models.DateTimeField(auto_now_add=True)
     is_public = models.BooleanField(default=False)
     ref_insight = models.ForeignKey(Insight, on_delete=models.SET_NULL, null=True, blank=True, related_name="portfolio_references")
-
-    def __str__(self):
-        return f"{self.name} {self.symbol or ''}"
-
+    def __str__(self): return f"{self.name} {self.symbol or ''}"
     @property
     def max_drawdown(self):
         trades = self.trades.order_by("date")
-        if not trades.exists():
-            return 0
+        if not trades.exists(): return 0
         equity = Decimal(self.amount)
         peak = equity
         max_dd = Decimal("0")
@@ -129,7 +92,6 @@ class Portfolio(models.Model):
                 dd = (peak - equity) / peak
                 max_dd = max(max_dd, dd)
         return round(max_dd * 100, 2)
-
     class Meta:
         ordering = ["date_added"]
         verbose_name_plural = "Portfolios"
@@ -149,41 +111,31 @@ class Trade(models.Model):
     notes = models.TextField(blank=True)
     ref = models.CharField(max_length=50, blank=True)
     ref_insight = models.ForeignKey(Insight, on_delete=models.SET_NULL, null=True, blank=True, related_name="trade_references")
-
     @property
     def pnl(self):
         direction = Decimal("1") if self.side == "BUY" else Decimal("-1")
         return round(direction * (self.exit - self.entry) * Decimal(self.qty), 2)
-
     @property
     def risk(self):
-        if not self.stoploss:
-            return None
+        if not self.stoploss: return None
         direction = Decimal("1") if self.side == "BUY" else Decimal("-1")
         return round(direction * (self.stoploss - self.entry) * Decimal(self.qty), 2)
-
-    def __str__(self):
-        return f"{self.portfolio.name} - {self.symbol} - {self.side}"
-
+    def __str__(self): return f"{self.portfolio.name} - {self.symbol} - {self.side}"
     class Meta:
         ordering = ["date"]
         verbose_name_plural = "Trades"
 
-
 # ==========================================
-# PHẦN 2: AUM TERMINAL & QUANT ENGINE 
+# PHẦN 2: AUM TERMINAL & QUANT ENGINE
 # ==========================================
-
 class QuantAccount(models.Model):
     name = models.CharField(max_length=100)
     balance = models.FloatField(default=10000.0)
     currency = models.CharField(max_length=10, default='USD')
-    mql5_path = models.CharField(max_length=500, blank=True, default='')
+    mql5_path = models.CharField(max_length=500, blank=True, default="")
     lot_size = models.FloatField(default=100000.0)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
+    def __str__(self): return self.name
 
 class PortfolioSetting(models.Model):
     max_daily_risk_percent = models.FloatField(default=2.0)
@@ -245,12 +197,9 @@ class PortfolioRiskLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
 
 # ==========================================
-# KHU VỰC 3: TRẠM KIỂM ĐIỂM & NHẬN ĐỊNH (WEEKLY REVIEW HUB)
+# KHU VỰC 3: TRẠM KIỂM ĐIỂM & NHẬN ĐỊNH
 # ==========================================
-import uuid
-
 class MissedTrade(models.Model):
-    """Thùng rác chứa các lệnh bị lỡ hoặc hủy"""
     uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account_id = models.IntegerField(default=1)
     week_start_date = models.DateField()
@@ -260,12 +209,9 @@ class MissedTrade(models.Model):
     analysis_details = models.TextField(blank=True, null=True)
     images = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"{self.pair} - {self.reason}"
+    def __str__(self): return f"{self.pair} - {self.reason}"
 
 class WeeklyReview(models.Model):
-    """Hồ sơ kiểm điểm và tâm lý cuối tuần"""
     account_id = models.IntegerField(default=1)
     week_start_date = models.DateField()
     total_trades = models.IntegerField(default=0)
@@ -274,89 +220,48 @@ class WeeklyReview(models.Model):
     fa_accuracy = models.IntegerField(default=5)
     ta_accuracy = models.IntegerField(default=5)
     fusion_score = models.IntegerField(default=5)
-    review_details = models.TextField(default="{}") # Chứa thói quen, tâm lý, bài học
-
+    review_details = models.TextField(default="{}")
     class Meta:
         unique_together = ('account_id', 'week_start_date')
+    def __str__(self): return f"Review Tuần: {self.week_start_date}"
 
-    def __str__(self):
-        return f"Review Tuần: {self.week_start_date}"
-
-    
 class MacroDirective(models.Model):
-    """
-    NGỌN HẢI ĐĂNG VĨ MÔ. Lệnh bài tử thần của CEO.
-    Xác định xu hướng chủ đạo. Kẻ nào cản đường, kẻ đó chết.
-    """
-    DIRECTION_CHOICES = [
-        ('BUY', 'LONG (BULLISH)'),
-        ('SELL', 'SHORT (BEARISH)'),
-        ('NEUTRAL', 'STAND CLEAR (Đứng ngoài)'),
-    ]
-    
+    DIRECTION_CHOICES = [('BUY', 'LONG (BULLISH)'), ('SELL', 'SHORT (BEARISH)'), ('NEUTRAL', 'STAND CLEAR')]
     ticker = models.CharField(max_length=20, help_text="VD: XAUUSD, EURJPY")
     direction = models.CharField(max_length=10, choices=DIRECTION_CHOICES)
-    week_start = models.DateField(default=timezone.now, help_text="Ngày bắt đầu hiệu lực")
-    is_active = models.BooleanField(default=True, help_text="Tắt đi nếu sếp đổi ý")
-    
-    # Dấu vết thời gian
+    week_start = models.DateField(default=timezone.now)
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"MACRO: {self.ticker} -> {self.direction} (Active: {self.is_active})"
-
+    def __str__(self): return f"MACRO: {self.ticker} -> {self.direction}"
 
 class AlphaSignal(models.Model):
-    """
-    TỜ TRÌNH CHIẾN TRƯỜNG.
-    Ghi nhận vòng đời của một lệnh từ lúc sinh ra đến lúc chốt sổ.
-    """
     STATUS_CHOICES = [
         ('PENDING', 'CHỜ DUYỆT (Radar)'),
         ('APPROVED', 'ĐÃ DUYỆT (Execute Node)'),
         ('REJECTED', 'BÁC BỎ (Thùng rác)'),
         ('EXECUTED', 'ĐANG CHẠY (Sàn MT5)'),
-        ('CLOSED', 'CHỐT SỔ (Sổ cái PnL)'),
+        ('CLOSED', 'CHỐT SỐ (Số cái PnL)')
     ]
-
-    # 1. Thông tin trinh sát từ EA
     ticker = models.CharField(max_length=20)
     signal_direction = models.CharField(max_length=10)
     win_rate = models.FloatField(default=0.0)
     rr_ratio = models.FloatField(default=0.0)
-    
-    # 2. Đối chiếu Vĩ mô (Radar)
-    is_macro_aligned = models.BooleanField(
-        default=True, 
-        help_text="False = LỆNH BỘI PHẢN. Đi ngược Macro Outlook."
-    )
-    
-    # 3. Phán quyết Toán học & Quyền sinh sát (Execute Node)
-    kelly_recommended_lot = models.FloatField(default=0.0, help_text="Đạn tối đa Kelly cho phép")
-    ceo_approved_lot = models.FloatField(default=0.0, null=True, blank=True, help_text="Đạn thực tế CEO nạp")
-    
-    # 4. Trạng thái vòng đời
+    is_macro_aligned = models.BooleanField(default=True)
+    kelly_recommended_lot = models.FloatField(default=0.0)
+    ceo_approved_lot = models.FloatField(default=0.0, null=True, blank=True)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='PENDING')
-    
-    # 5. Kế toán ghi sổ (Ledger)
-    ticket_id = models.CharField(max_length=50, null=True, blank=True, help_text="Mã vé trên MT5")
-    realized_pnl = models.FloatField(default=0.0, help_text="Tiền tươi thóc thật")
-    
+    ticket_id = models.CharField(max_length=50, null=True, blank=True)
+    realized_pnl = models.FloatField(default=0.0)
+    pnl = models.FloatField(default=0.0, null=True, blank=True)  # <-- ĐÃ THỤT LỀ CHUẨN XÁC VÀO ĐÂY!
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    def __str__(self): return f"[{self.status}] {self.signal_direction} {self.ticker}"
 
-    def __str__(self):
-        return f"[{self.status}] {self.signal_direction} {self.ticker} | Lãi/Lỗ: ${self.realized_pnl}"
-    
 class WeeklyOutlook(models.Model):
-    """ NGỌN HẢI ĐĂNG VĨ MÔ """
     week_start = models.DateField(unique=True)
-    market_sentiment = models.CharField(max_length=50, default="MIXED") # Risk-On / Risk-Off / Mixed
-    weekly_bias = models.CharField(max_length=50, default="NEUTRAL")    # BUY / SELL / NEUTRAL
-    execution_script = models.TextField(blank=True, null=True)          # Đẩy sang trang Review
-    
+    market_sentiment = models.CharField(max_length=50, default="MIXED")
+    weekly_bias = models.CharField(max_length=50, default="NEUTRAL")
+    execution_script = models.TextField(blank=True, null=True)
     fa_bias = models.TextField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"OUTLOOK: {self.week_start} | Bias: {self.weekly_bias}"
+    def __str__(self): return f"OUTLOOK: {self.week_start} | Bias: {self.weekly_bias}"
