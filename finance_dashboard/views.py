@@ -1700,25 +1700,38 @@ def update_scenario_api(request):
 
 @csrf_exempt
 def review_api(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "Invalid method"}, status=405)
-    try:
-        data = json.loads(request.body)
-        review_details = safe_json_load(data.get("review_details"), {})
-        
-        obj, created = WeeklyReview.objects.update_or_create(
-            week_start_date=data["week_start_date"],
-            account_id=data.get("account_id", 1),
-            defaults={
-                "total_trades": data.get("total_trades", 0),
-                "win_rate": data.get("win_rate", 0),
-                "net_pnl": data.get("net_pnl", 0),
-                "fa_accuracy": data.get("fa_accuracy", 0),
-                "ta_accuracy": data.get("ta_accuracy", 0),
-                "fusion_score": data.get("fusion_score", 0),
-                "review_details": review_details,
-            }
-        )
-        return JsonResponse({"status": "saved"})
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+    if request.method == "GET":
+        week_start = request.GET.get('week_start')
+        try:
+            rev = WeeklyReview.objects.get(week_start_date=week_start)
+            return JsonResponse({
+                "fa_accuracy": rev.fa_accuracy, "ta_accuracy": rev.ta_accuracy, 
+                "fusion_score": rev.fusion_score, "review_details": rev.review_details
+            })
+        except WeeklyReview.DoesNotExist:
+            return JsonResponse({})
+            
+    elif request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            # Dùng cỗ máy an toàn để ép kiểu
+            review_details = safe_json_load(data.get("review_details"), {})
+            
+            obj, created = WeeklyReview.objects.update_or_create(
+                week_start_date=data["week_start_date"],
+                account_id=data.get("account_id", 1),
+                defaults={
+                    "total_trades": data.get("total_trades", 0),
+                    "win_rate": data.get("win_rate", 0),
+                    "net_pnl": data.get("net_pnl", 0),
+                    "fa_accuracy": data.get("fa_accuracy", 0),
+                    "ta_accuracy": data.get("ta_accuracy", 0),
+                    "fusion_score": data.get("fusion_score", 0),
+                    "review_details": review_details,
+                }
+            )
+            return JsonResponse({"status": "saved"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+            
+    return JsonResponse({"error": "Invalid method"}, status=405)
