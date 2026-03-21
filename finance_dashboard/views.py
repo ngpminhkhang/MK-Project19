@@ -1564,19 +1564,42 @@ def direct_fire_api(request):
 
 @csrf_exempt
 def get_current_outlook(request):
-    """ Bắn dữ liệu lên mặt tiền khi sếp chuyển Tab """
     if request.method == 'GET':
         week_start = request.GET.get('week_start')
+        account_id = request.GET.get('accountId', 1)
         try:
-            outlook = WeeklyOutlook.objects.get(week_start=week_start)
+            outlook = WeeklyOutlook.objects.filter(account_id=account_id, week_start_date=week_start).first()
+            if not outlook:
+                return JsonResponse({"status": "empty"})
             return JsonResponse({
-                "market_sentiment": outlook.market_sentiment,
-                "weekly_bias": outlook.weekly_bias,
-                "execution_script": outlook.execution_script,
-                "fa_bias": outlook.fa_bias # Bắn cục JSON lên
+                "status": "ok",
+                "fa_bias": outlook.fa_bias,
+                "ta_bias": outlook.ta_bias,
+                "final_bias": outlook.final_bias,
+                "script_plan": outlook.script_plan
             })
-        except WeeklyOutlook.DoesNotExist:
-            return JsonResponse({"error": "No data found"})   
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    elif request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            # Ép kiểu dứt khoát bằng máy xay
+            fa_bias_data = prepare_json_for_db(data.get('fa_bias'))
+            
+            outlook, created = WeeklyOutlook.objects.update_or_create(
+                account_id=data.get('account_id', 1),
+                week_start_date=data.get('week_start_date'),
+                defaults={
+                    'fa_bias': fa_bias_data,
+                    'ta_bias': prepare_json_for_db(data.get('ta_bias')),
+                    'final_bias': data.get('final_bias', 'NEUTRAL'),
+                    'script_plan': data.get('script_plan', '')
+                }
+            )
+            return JsonResponse({"status": "ok"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)   
 
 @csrf_exempt
 def close_trade_api(request):
@@ -1650,34 +1673,26 @@ def update_pnl_api(request):
 
 def prepare_json_for_db(val):
     """
-    MÁY ÉP NILON CHỐNG NHÁY ĐƠN:
-    Đưa mọi thứ về Dict/List thuần, sau đó ép cứng thành chuỗi JSON chuẩn (Dấu nháy kép).
-    Cứu rỗi các trường TextField trong Database khỏi việc lưu sai định dạng.
+    MÁY XAY V3: Lột sạch mọi lớp vỏ, trả về Object/Array thuần túy.
+    ĐỂ CHO DJANGO TỰ XỬ LÝ JSON. KHÔNG DÙNG json.dumps NỮA!
     """
-    # Bước 1: Gột rửa về Dict/List thuần túy
     if val is None:
-        cleaned_val = {}
-    elif isinstance(val, str):
+        return {}
+    if isinstance(val, (dict, list)):
+        return val  # Trả về nguyên bản, không bọc chuỗi
+    if isinstance(val, str):
         val = val.strip()
         if not val or val in ["{}", "[]", "null", "undefined"]:
-            cleaned_val = {}
-        else:
-            try:
-                parsed = json.loads(val)
-                # Lột sạch nếu bị stringify nhiều lớp
-                while isinstance(parsed, str):
-                    parsed = json.loads(parsed)
-                cleaned_val = parsed
-            except json.JSONDecodeError:
-                cleaned_val = {"notes": val}
-    elif isinstance(val, (dict, list)):
-        cleaned_val = val
-    else:
-        cleaned_val = {}
-        
-    # Bước 2: ÉP THÀNH CHUỖI JSON CHUẨN (Quan trọng nhất)
-    # Hàm này đảm bảo sinh ra {"lessons": ""} thay vì {'lessons': ''}
-    return json.dumps(cleaned_val, ensure_ascii=False)
+            return {}
+        try:
+            parsed = json.loads(val)
+            # Lột vỏ cho đến khi chạm tới lõi (Trị dứt điểm vụ kẹt chữ)
+            while isinstance(parsed, str):
+                parsed = json.loads(parsed)
+            return parsed
+        except json.JSONDecodeError:
+            return {"notes": val}
+    return {}
 
 @csrf_exempt
 def update_scenario_api(request):
