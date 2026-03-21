@@ -104,7 +104,7 @@ urlpatterns = [
     path('api/dashboard/metrics/legacy/', views.dashboard_metrics_api, name='api_dashboard_metrics_legacy'),
 
     path('api/mt5/execution/', views.mt5_execution_node, name='api_mt5_execution'),
-    path('api/mt5/radar/', views.radar_monitor_api, name='api_radar_monitor'),
+    
     path('api/mt5/check_status/', views.check_ticket_status, name='api_check_status'),
     path('api/mt5/approve/', views.approve_ticket_api, name='api_approve_ticket'),
     
@@ -124,5 +124,6 @@ urlpatterns = [
     path('api/mt5/update_pnl/', views.update_pnl_api, name='api_update_pnl'),
 
     path('api/mt5/radar_blip/', views.radar_blip_api, name='radar_blip_api'),
-    path('api/mt5/radar/', views.radar_list_api, name='radar_list_api'),
+    path('api/mt5/radar_v2/', views.radar_list_api, name='radar_list_api'),
+    
 ]
