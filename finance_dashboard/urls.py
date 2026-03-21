@@ -122,4 +122,7 @@ urlpatterns = [
     path('api/mt5/mark_closed/', views.mark_closed_api, name='api_mark_closed'),
 
     path('api/mt5/update_pnl/', views.update_pnl_api, name='api_update_pnl'),
+
+    path('api/mt5/radar_blip/', views.radar_blip_api, name='radar_blip_api'),
+    path('api/mt5/radar/', views.radar_list_api, name='radar_list_api'),
 ]

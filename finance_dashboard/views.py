@@ -22,7 +22,7 @@ from django.template.loader import render_to_string
 from tenacity import retry, stop_after_attempt, wait_fixed
 import logging
 from django.views.decorators.csrf import csrf_exempt
-from .models import AlphaSignal, MacroDirective
+from .models import AlphaSignal, MacroDirective, RadarBlip
 from .models import QuantScenario
 from .risk_engine import FundManager
 from .models import WeeklyReview, MissedTrade
@@ -1794,3 +1794,41 @@ def get_current_outlook(request):
             return JsonResponse({"status": "ok"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+        
+import time
+
+@csrf_exempt
+def radar_blip_api(request):
+    """ ỐNG NHẬN ĐẠN: Hứng tín hiệu từ EA MT5 bắn lên """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            sym = data.get('symbol')
+            
+            # Lệnh dọn rác: EA báo mất tín hiệu
+            if data.get('action') == 'DELETE':
+                RadarBlip.objects.filter(symbol=sym).delete()
+                return JsonResponse({"message": "Đã xóa mục tiêu khỏi màn hình Radar"})
+            
+            # Lệnh khóa mục tiêu: Ghi đè tín hiệu mới nhất
+            RadarBlip.objects.update_or_create(
+                symbol=sym,
+                defaults={
+                    'direction': data.get('direction', 'NEUTRAL'),
+                    'active_tags': data.get('active_tags', []),
+                    'is_alerting': data.get('is_alerting', False),
+                    'score': data.get('score', 0),
+                    'timestamp': data.get('timestamp', int(time.time() * 1000))
+                }
+            )
+            return JsonResponse({"message": f"Đã nạp đạn mục tiêu {sym}"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "CHỈ NHẬN POST"}, status=405)
+
+@csrf_exempt
+def radar_list_api(request):
+    """ ỐNG BƠM ĐẠN: Đẩy tín hiệu lên mặt tiền trang Monitor """
+    if request.method == 'GET':
+        blips = list(RadarBlip.objects.values())
+        return JsonResponse({"radar_blips": blips})

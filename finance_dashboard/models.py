@@ -266,3 +266,16 @@ class WeeklyOutlook(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     def __str__(self): return f"OUTLOOK: {self.week_start} | Bias: {self.weekly_bias}"
 
+class RadarBlip(models.Model):
+    """ Bồn chứa tín hiệu chớp nhoáng từ MT5 bắn về """
+    symbol = models.CharField(max_length=20, unique=True)
+    direction = models.CharField(max_length=10)
+    active_tags = models.JSONField(default=list)
+    is_alerting = models.BooleanField(default=False)
+    score = models.IntegerField(default=0)
+    timestamp = models.BigIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"RADAR BLIP: {self.symbol} -> {self.direction}"
+
