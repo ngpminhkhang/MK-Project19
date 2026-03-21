@@ -112,8 +112,10 @@ urlpatterns = [
     path('api/mt5/mark_executed/', views.mark_executed, name='api_mark_executed'),
     path('api/outlook/sync/', views.sync_outlook_api, name='api_sync_outlook'),
     
-    path('api/mt5/direct_fire/', views.direct_fire_api, name='api_direct_fire'),
+    # [VÙNG LÕI ĐÃ ĐƯỢC BỌC THÉP] Ống nước an toàn cho tab FUSION
     path('api/outlook/current/', views.get_current_outlook, name='api_get_outlook'),
+
+    path('api/mt5/direct_fire/', views.direct_fire_api, name='api_direct_fire'),
 
     path('api/mt5/close_trade/', views.close_trade_api, name='api_close_trade'),
     path('api/mt5/fetch_close/', views.fetch_close_commands, name='api_fetch_close'),

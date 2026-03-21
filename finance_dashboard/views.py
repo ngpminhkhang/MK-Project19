@@ -1671,22 +1671,18 @@ def update_pnl_api(request):
             
     return JsonResponse({"error": "POST ONLY"}, status=405)
 
-def prepare_json_for_db(val):
+def clean_to_dict(val):
     """
-    MÁY XAY V3: Lột sạch mọi lớp vỏ, trả về Object/Array thuần túy.
-    ĐỂ CHO DJANGO TỰ XỬ LÝ JSON. KHÔNG DÙNG json.dumps NỮA!
+    MÁY XAY ĐA NĂNG: Lột sạch mọi lớp vỏ rác rưởi của Frontend.
+    Trả về Dict/List thuần túy tinh khiết nhất.
     """
-    if val is None:
-        return {}
-    if isinstance(val, (dict, list)):
-        return val  # Trả về nguyên bản, không bọc chuỗi
+    if val is None: return {}
+    if isinstance(val, (dict, list)): return val
     if isinstance(val, str):
         val = val.strip()
-        if not val or val in ["{}", "[]", "null", "undefined"]:
-            return {}
+        if not val or val in ["{}", "[]", "null", "undefined"]: return {}
         try:
             parsed = json.loads(val)
-            # Lột vỏ cho đến khi chạm tới lõi (Trị dứt điểm vụ kẹt chữ)
             while isinstance(parsed, str):
                 parsed = json.loads(parsed)
             return parsed
@@ -1696,7 +1692,7 @@ def prepare_json_for_db(val):
 
 @csrf_exempt
 def update_scenario_api(request):
-    """ API lưu Trade Ledger """
+    """ Xử lý cho Trade Ledger (Dùng JSONField -> Ép ăn đồ tươi) """
     if request.method != "POST":
         return JsonResponse({"error": "Invalid method"}, status=405)
     try:
@@ -1704,25 +1700,22 @@ def update_scenario_api(request):
         data = body.get("input", {})
         scenario = QuantScenario.objects.get(uuid=data.get("uuid"))
         
-        # CHẠY TẤT CẢ QUA MÁY ÉP NILON
+        # Vì QuantScenario dùng JSONField, ta ném thẳng Object thuần vào
         if "analysis_details" in data:
-            scenario.analysis_details = prepare_json_for_db(data["analysis_details"])
+            scenario.analysis_details = clean_to_dict(data["analysis_details"])
         if "pre_trade_checklist" in data:
-            scenario.pre_trade_checklist = prepare_json_for_db(data["pre_trade_checklist"])
+            scenario.pre_trade_checklist = clean_to_dict(data["pre_trade_checklist"])
         if "risk_data" in data:
-            scenario.risk_data = prepare_json_for_db(data["risk_data"])
+            scenario.risk_data = clean_to_dict(data["risk_data"])
         if "images" in data:
-            scenario.images = prepare_json_for_db(data["images"])
+            scenario.images = clean_to_dict(data["images"])
         if "result_images" in data:
-            scenario.result_images = prepare_json_for_db(data["result_images"])
+            scenario.result_images = clean_to_dict(data["result_images"])
         if "review_data" in data:
-            scenario.review_data = prepare_json_for_db(data["review_data"])
+            scenario.review_data = clean_to_dict(data["review_data"])
             
-        # TRƯỜNG BÌNH THƯỜNG KHÔNG CẦN ÉP
-        if "pnl" in data: 
-            scenario.pnl = data["pnl"]
-        if "exit_price" in data: 
-            scenario.exit_price = data["exit_price"]
+        if "pnl" in data: scenario.pnl = data["pnl"]
+        if "exit_price" in data: scenario.exit_price = data["exit_price"]
             
         scenario.save()
         return JsonResponse({"status": "ok"})
@@ -1731,7 +1724,7 @@ def update_scenario_api(request):
 
 @csrf_exempt
 def review_api(request):
-    """ API lưu System Audit (Review & Psychology) """
+    """ Xử lý System Audit Metrics (Dùng TextField -> Ép bọc nilon json.dumps) """
     if request.method == "GET":
         week_start = request.GET.get('week_start')
         try:
@@ -1746,11 +1739,10 @@ def review_api(request):
     elif request.method == "POST":
         try:
             data = json.loads(request.body)
+            # Lấy đồ tươi ra
+            raw_details = clean_to_dict(data.get("review_details", {}))
             
-            # ÉP CHUỖI CHUẨN TRƯỚC KHI LƯU VÀO DATABASE
-            review_details_str = prepare_json_for_db(data.get("review_details", {}))
-            
-            obj, created = WeeklyReview.objects.update_or_create(
+            WeeklyReview.objects.update_or_create(
                 week_start_date=data["week_start_date"],
                 account_id=data.get("account_id", 1),
                 defaults={
@@ -1760,11 +1752,45 @@ def review_api(request):
                     "fa_accuracy": data.get("fa_accuracy", 0),
                     "ta_accuracy": data.get("ta_accuracy", 0),
                     "fusion_score": data.get("fusion_score", 0),
-                    "review_details": review_details_str,
+                    # Bọc nilon bảo quản cẩn thận trước khi nhét vào TextField
+                    "review_details": json.dumps(raw_details, ensure_ascii=False),
                 }
             )
             return JsonResponse({"status": "saved"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+
+@csrf_exempt
+def get_current_outlook(request):
+    """ Khớp nối lại toàn bộ đường ống hỏng của Tab FUSION """
+    if request.method == 'GET':
+        week_start = request.GET.get('week_start')
+        try:
+            # Bảng này KHÔNG có account_id, chỉ query theo tuần
+            outlook = WeeklyOutlook.objects.get(week_start=week_start)
+            return JsonResponse({
+                "status": "ok",
+                "fa_bias": outlook.fa_bias, # Chuỗi JSON an toàn
+                "final_bias": outlook.weekly_bias, # Map tên cho React
+                "script_plan": outlook.execution_script # Map tên cho React
+            })
+        except WeeklyOutlook.DoesNotExist:
+            return JsonResponse({"status": "empty"})
+
+    elif request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            raw_fa_bias = clean_to_dict(data.get('fa_bias'))
             
-    return JsonResponse({"error": "Invalid method"}, status=405)
+            WeeklyOutlook.objects.update_or_create(
+                week_start=data.get('week_start_date'), # DB dùng week_start
+                defaults={
+                    # Bọc nilon vì fa_bias là TextField
+                    'fa_bias': json.dumps(raw_fa_bias, ensure_ascii=False),
+                    'weekly_bias': data.get('final_bias', 'NEUTRAL'),
+                    'execution_script': data.get('script_plan', '')
+                }
+            )
+            return JsonResponse({"status": "ok"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
