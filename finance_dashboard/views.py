@@ -1825,8 +1825,13 @@ def radar_blip_api(request):
 
 @csrf_exempt
 def radar_list_api(request):
-    """ Bơm đạn lên trang Monitor """
+    """ Bơm đạn lên trang Monitor (Đã vô hiệu hóa bẫy Thời gian) """
     if request.method == 'GET':
-        # Bắt buộc phải dùng bảng RadarBlip mới
-        blips = list(RadarBlip.objects.values())
-        return JsonResponse({"radar_blips": blips})
+        try:
+            # Bắt máy xúc CHỈ LẤY đúng 6 cột này, bỏ qua cột updated_at gây đột quỵ
+            blips = list(RadarBlip.objects.values(
+                'symbol', 'direction', 'active_tags', 'is_alerting', 'score', 'timestamp'
+            ))
+            return JsonResponse({"radar_blips": blips})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
