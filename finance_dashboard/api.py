@@ -187,7 +187,7 @@ def get_portfolio_state(request):
 
 @csrf_exempt
 def get_scenarios(request):
-    """Rút hồ sơ tất cả các lệnh đã lên kịch bản"""
+    """ Rút hồ sơ. Đã tát gã bảo vệ để nó nhớ lấy thêm review_data """
     if request.method == 'GET':
         account_id = request.GET.get('accountId')
         scenarios = QuantScenario.objects.filter(account_id=account_id).order_by('-created_at')[:200]
@@ -198,6 +198,7 @@ def get_scenarios(request):
                 "pnl": s.pnl, "entry_price": s.entry_price, "sl_price": s.sl_price, "tp_price": s.tp_price,
                 "volume": s.volume, "setup_id": s.setup_id, "analysis_details": s.analysis_details,
                 "pre_trade_checklist": s.pre_trade_checklist, "images": s.images, "result_images": s.result_images,
+                "review_data": s.review_data, # <--- CHÍNH LÀ NÓ! THIẾU DÒNG NÀY NÊN TRADE LEDGER TÀNG HÌNH!
                 "htf_trend": s.htf_trend, "market_phase": s.market_phase, "dealing_range": s.dealing_range,
                 "narrative": s.narrative, "scenario_type": s.scenario_type
             })
@@ -990,3 +991,42 @@ def manage_weekly_outlook(request):
             import traceback
             traceback.print_exc()
             return JsonResponse({"error": str(e)}, status=400)
+        
+@csrf_exempt
+def get_current_outlook(request):
+    """ Bọc thép cả cổng ĐỌC (GET) và LƯU (POST). Ép tên biến chuẩn khớp với Database """
+    if request.method == 'GET':
+        week_start = request.GET.get('week_start')
+        try:
+            outlook = WeeklyOutlook.objects.get(week_start=week_start)
+            return JsonResponse({
+                "status": "ok",
+                "final_bias": outlook.weekly_bias,     # Map thẳng tên DB ra mặt tiền
+                "script_plan": outlook.execution_script, 
+                "fa_bias": outlook.fa_bias 
+            })
+        except WeeklyOutlook.DoesNotExist:
+            return JsonResponse({"status": "empty"})
+
+    elif request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            week_start = data.get('week_start_date')
+            
+            # Xử lý cục JSON trước khi tống vào TextField
+            fa_data = data.get('fa_bias', {})
+            fa_string = json.dumps(fa_data, ensure_ascii=False) if isinstance(fa_data, dict) else fa_data
+
+            WeeklyOutlook.objects.update_or_create(
+                week_start=week_start,
+                defaults={
+                    'weekly_bias': data.get('final_bias', 'NEUTRAL'),
+                    'execution_script': data.get('script_plan', ''),
+                    'fa_bias': fa_string
+                }
+            )
+            return JsonResponse({"status": "ok"})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({"error": str(e)}, status=500)

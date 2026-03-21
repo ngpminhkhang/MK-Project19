@@ -265,3 +265,4 @@ class WeeklyOutlook(models.Model):
     fa_bias = models.TextField(blank=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
     def __str__(self): return f"OUTLOOK: {self.week_start} | Bias: {self.weekly_bias}"
+

@@ -113,7 +113,7 @@ urlpatterns = [
     path('api/outlook/sync/', views.sync_outlook_api, name='api_sync_outlook'),
     
     # [VÙNG LÕI ĐÃ ĐƯỢC BỌC THÉP] Ống nước an toàn cho tab FUSION
-    path('api/outlook/current/', views.get_current_outlook, name='api_get_outlook'),
+    path('api/outlook/current/', api.get_current_outlook, name='api_get_outlook'),
 
     path('api/mt5/direct_fire/', views.direct_fire_api, name='api_direct_fire'),
 
