@@ -1648,24 +1648,40 @@ def update_pnl_api(request):
             
     return JsonResponse({"error": "POST ONLY"}, status=405)
 
-def safe_json_load(val, default):
+def prepare_json_for_db(val):
+    """
+    MÁY ÉP NILON CHỐNG NHÁY ĐƠN:
+    Đưa mọi thứ về Dict/List thuần, sau đó ép cứng thành chuỗi JSON chuẩn (Dấu nháy kép).
+    Cứu rỗi các trường TextField trong Database khỏi việc lưu sai định dạng.
+    """
+    # Bước 1: Gột rửa về Dict/List thuần túy
     if val is None:
-        return default
-    if isinstance(val, (dict, list)):
-        return val
-    if isinstance(val, str):
-        try:
-            parsed = json.loads(val)
-            # Lột vỏ lớp thứ hai
-            if isinstance(parsed, str):
-                return json.loads(parsed)
-            return parsed
-        except:
-            return default
-    return default
+        cleaned_val = {}
+    elif isinstance(val, str):
+        val = val.strip()
+        if not val or val in ["{}", "[]", "null", "undefined"]:
+            cleaned_val = {}
+        else:
+            try:
+                parsed = json.loads(val)
+                # Lột sạch nếu bị stringify nhiều lớp
+                while isinstance(parsed, str):
+                    parsed = json.loads(parsed)
+                cleaned_val = parsed
+            except json.JSONDecodeError:
+                cleaned_val = {"notes": val}
+    elif isinstance(val, (dict, list)):
+        cleaned_val = val
+    else:
+        cleaned_val = {}
+        
+    # Bước 2: ÉP THÀNH CHUỖI JSON CHUẨN (Quan trọng nhất)
+    # Hàm này đảm bảo sinh ra {"lessons": ""} thay vì {'lessons': ''}
+    return json.dumps(cleaned_val, ensure_ascii=False)
 
 @csrf_exempt
 def update_scenario_api(request):
+    """ API lưu Trade Ledger """
     if request.method != "POST":
         return JsonResponse({"error": "Invalid method"}, status=405)
     try:
@@ -1673,21 +1689,21 @@ def update_scenario_api(request):
         data = body.get("input", {})
         scenario = QuantScenario.objects.get(uuid=data.get("uuid"))
         
-        # BỘ LỌC JSON
+        # CHẠY TẤT CẢ QUA MÁY ÉP NILON
         if "analysis_details" in data:
-            scenario.analysis_details = safe_json_load(data["analysis_details"], {})
+            scenario.analysis_details = prepare_json_for_db(data["analysis_details"])
         if "pre_trade_checklist" in data:
-            scenario.pre_trade_checklist = safe_json_load(data["pre_trade_checklist"], {})
+            scenario.pre_trade_checklist = prepare_json_for_db(data["pre_trade_checklist"])
         if "risk_data" in data:
-            scenario.risk_data = safe_json_load(data["risk_data"], {})
+            scenario.risk_data = prepare_json_for_db(data["risk_data"])
         if "images" in data:
-            scenario.images = safe_json_load(data["images"], [])
+            scenario.images = prepare_json_for_db(data["images"])
         if "result_images" in data:
-            scenario.result_images = safe_json_load(data["result_images"], [])
+            scenario.result_images = prepare_json_for_db(data["result_images"])
         if "review_data" in data:
-            scenario.review_data = safe_json_load(data["review_data"], {})
+            scenario.review_data = prepare_json_for_db(data["review_data"])
             
-        # TRƯỜNG BÌNH THƯỜNG
+        # TRƯỜNG BÌNH THƯỜNG KHÔNG CẦN ÉP
         if "pnl" in data: 
             scenario.pnl = data["pnl"]
         if "exit_price" in data: 
@@ -1700,6 +1716,7 @@ def update_scenario_api(request):
 
 @csrf_exempt
 def review_api(request):
+    """ API lưu System Audit (Review & Psychology) """
     if request.method == "GET":
         week_start = request.GET.get('week_start')
         try:
@@ -1714,8 +1731,9 @@ def review_api(request):
     elif request.method == "POST":
         try:
             data = json.loads(request.body)
-            # Dùng cỗ máy an toàn để ép kiểu
-            review_details = safe_json_load(data.get("review_details"), {})
+            
+            # ÉP CHUỖI CHUẨN TRƯỚC KHI LƯU VÀO DATABASE
+            review_details_str = prepare_json_for_db(data.get("review_details", {}))
             
             obj, created = WeeklyReview.objects.update_or_create(
                 week_start_date=data["week_start_date"],
@@ -1727,7 +1745,7 @@ def review_api(request):
                     "fa_accuracy": data.get("fa_accuracy", 0),
                     "ta_accuracy": data.get("ta_accuracy", 0),
                     "fusion_score": data.get("fusion_score", 0),
-                    "review_details": review_details,
+                    "review_details": review_details_str,
                 }
             )
             return JsonResponse({"status": "saved"})
