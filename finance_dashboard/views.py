@@ -1799,18 +1799,15 @@ import time
 
 @csrf_exempt
 def radar_blip_api(request):
-    """ ỐNG NHẬN ĐẠN: Hứng tín hiệu từ EA MT5 bắn lên """
+    """ Hứng đạn từ EA MT5 """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             sym = data.get('symbol')
-            
-            # Lệnh dọn rác: EA báo mất tín hiệu
             if data.get('action') == 'DELETE':
                 RadarBlip.objects.filter(symbol=sym).delete()
-                return JsonResponse({"message": "Đã xóa mục tiêu khỏi màn hình Radar"})
+                return JsonResponse({"message": "Clear"})
             
-            # Lệnh khóa mục tiêu: Ghi đè tín hiệu mới nhất
             RadarBlip.objects.update_or_create(
                 symbol=sym,
                 defaults={
@@ -1818,17 +1815,18 @@ def radar_blip_api(request):
                     'active_tags': data.get('active_tags', []),
                     'is_alerting': data.get('is_alerting', False),
                     'score': data.get('score', 0),
-                    'timestamp': data.get('timestamp', int(time.time() * 1000))
+                    'timestamp': data.get('timestamp', 0)
                 }
             )
-            return JsonResponse({"message": f"Đã nạp đạn mục tiêu {sym}"})
+            return JsonResponse({"message": "Khóa mục tiêu"})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
-    return JsonResponse({"error": "CHỈ NHẬN POST"}, status=405)
+    return JsonResponse({"error": "POST ONLY"}, status=405)
 
 @csrf_exempt
 def radar_list_api(request):
-    """ ỐNG BƠM ĐẠN: Đẩy tín hiệu lên mặt tiền trang Monitor """
+    """ Bơm đạn lên trang Monitor """
     if request.method == 'GET':
+        # Bắt buộc phải dùng bảng RadarBlip mới
         blips = list(RadarBlip.objects.values())
         return JsonResponse({"radar_blips": blips})
