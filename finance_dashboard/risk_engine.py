@@ -1,89 +1,54 @@
 import logging
+import numpy as np
+from .models import AlphaSignal, QuantAccount
 
 logger = logging.getLogger(__name__)
 
+class BehavioralEngine:
+    @staticmethod
+    def analyze_trader_psyche():
+        past_trades = AlphaSignal.objects.filter(status='CLOSED').order_by('-updated_at')[:20]
+        if len(past_trades) < 5: return "STABLE", 1.0, 0.0 
+        
+        wins = [t for t in past_trades if t.pnl and float(t.pnl) > 0]
+        win_rate = len(wins) / len(past_trades)
+        
+        win_streak = 0
+        for t in past_trades:
+            if t.pnl and float(t.pnl) > 0: win_streak += 1
+            else: break
+            
+        pnls = [float(t.pnl) for t in past_trades if t.pnl]
+        volatility = np.std(pnls) if pnls else 0
+        oci = win_rate * win_streak * (volatility / 100 + 1)
+        
+        if win_streak >= 4 or oci > 5.0: return "HOT", 0.8, oci 
+        return "STABLE", 1.0, oci
+
 class KellyEngine:
-    """
-    Cỗ máy phân bổ vốn toán học. Không cảm xúc.
-    """
-
     @staticmethod
-    def _raw_kelly(win_rate: float, reward_risk_ratio: float) -> float:
-        """ Tính toán Kelly nguyên thủy """
-        if reward_risk_ratio <= 0:
-            return 0.0
+    def calculate_final_bullet(capital, win_rate=0.5, rr_ratio=2.0):
+        regime, penalty, oci = BehavioralEngine.analyze_trader_psyche()
+        if regime == "TILT": return 0.0
         
-        kelly_pct = win_rate - ((1.0 - win_rate) / reward_risk_ratio)
-        return max(0.0, kelly_pct) # Âm thì trả về 0 (Đứng im)
+        raw_kelly = win_rate - ((1.0 - win_rate) / rr_ratio)
+        final_allocation = (capital * (raw_kelly / 2.0)) * penalty 
+        return round(max(0.0, final_allocation), 2)
+
+class CentralRiskEngine:
+    HARD_LIMIT_PCT = 30.0
 
     @staticmethod
-    def get_full_kelly(win_rate: float, reward_risk_ratio: float) -> float:
-        """ 
-        Dành cho kẻ điên. Cược tối đa theo giới hạn toán học.
-        Khả năng x2 tài khoản cao, nhưng sụt giảm (Drawdown) cực sốc.
-        """
-        return KellyEngine._raw_kelly(win_rate, reward_risk_ratio)
+    def get_total_notional_exposure():
+        active = AlphaSignal.objects.filter(status__in=['EXECUTED', 'APPROVED'])
+        return sum([(s.ceo_approved_lot or 0) * 100000 * (s.entry_price or 1.0) for s in active])
 
-    @staticmethod
-    def get_half_kelly(win_rate: float, reward_risk_ratio: float) -> float:
-        """ 
-        Tiêu chuẩn Quỹ Phòng Hộ. Ăn chia sự an toàn. 
-        Giảm một nửa tốc độ tăng trưởng nhưng đập nát rủi ro phá sản.
-        """
-        return KellyEngine._raw_kelly(win_rate, reward_risk_ratio) / 2.0
-
-
-class FundManager:
-    """
-    Giám đốc rủi ro. Chuyên gia dội nước lạnh vào mặt CEO.
-    """
-
-    @staticmethod
-    def anti_euphoria_protocol(initial_capital: float, current_balance: float, current_throttle: float = 1.0) -> float:
-        """
-        Thuật toán Giảm Hưng Phấn.
-        initial_capital: Vốn gốc (Ví dụ: 100,000)
-        current_balance: Vốn hiện tại (Ví dụ: 200,000)
-        current_throttle: Tỷ lệ vốn đang được phép dùng (Bắt đầu là 1.0 -> 100%)
+    @classmethod
+    def validate_new_trade(cls, balance, new_lot, price):
+        current_exp = cls.get_total_notional_exposure()
+        new_exp = (new_lot * 100000 * price)
+        total_pct = ((current_exp + new_exp) / balance) * 100 if balance > 0 else 100
         
-        Trả về: Hệ số cấp vốn mới cho tháng tiếp theo.
-        """
-        roi = (current_balance - initial_capital) / initial_capital
-
-        # Sếp vừa nhân đôi tài khoản? (ROI >= 100%)
-        if roi >= 1.0:
-            logger.warning("CEO MODE ĐANG NGÁO ĐÁ. Kích hoạt giao thức tước vũ khí!")
-            
-            # Cắt giảm 20% quyền lực
-            new_throttle = current_throttle - 0.20
-            
-            # Chạm đáy nỗi đau (Chỉ còn 50% vốn) thì bắt đầu bơm lại từ từ
-            if new_throttle <= 0.50:
-                logger.info("Chạm ngưỡng an toàn. Bắt đầu nới lỏng dòng vốn.")
-                # Công thức bơm lại 10% mỗi lần sếp vượt đỉnh mới (Sếp tự điều chỉnh con số này)
-                new_throttle = min(1.0, current_throttle + 0.10) 
-                
-            return round(new_throttle, 2)
-        
-        # Sếp đang trade bình thường, chưa x2 tài khoản
-        return current_throttle
-
-    @staticmethod
-    def calculate_final_bullet(capital: float, win_rate: float, rr_ratio: float, throttle_rate: float, use_half_kelly: bool = True) -> float:
-        """
-        Hàm chốt hạ. Tổng hợp mọi hình phạt và tính ra số tiền tươi thóc thật được phép ném vào lệnh này.
-        """
-        # Bước 1: Tính phần trăm theo Kelly
-        if use_half_kelly:
-            kelly_pct = KellyEngine.get_half_kelly(win_rate, rr_ratio)
-        else:
-            kelly_pct = KellyEngine.get_full_kelly(win_rate, rr_ratio)
-
-        # Bước 2: Bóp nghẹt vốn tổng theo độ ngáo đá của sếp
-        usable_capital = capital * throttle_rate
-
-        # Bước 3: Tính ra số đạn cuối cùng
-        bullet = usable_capital * kelly_pct
-        
-        logger.info(f"Vốn khả dụng: {usable_capital}. Tỷ lệ Kelly: {kelly_pct}. Đạn nạp: {bullet}")
-        return round(bullet, 2)
+        if total_pct > cls.HARD_LIMIT_PCT:
+            return False, f"TỪ CHỐI! Exposure {total_pct:.2f}% vượt ngưỡng 30%."
+        return True, f"An toàn. Exposure hiện tại: {total_pct:.2f}%."
