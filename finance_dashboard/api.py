@@ -408,57 +408,11 @@ def bridge_sync_live_pnl(request):
 
 @csrf_exempt
 def get_journal_trades(request):
-    """Lấy danh sách lịch sử lệnh"""
-    if request.method == 'GET':
-        try:
-            outcome = request.GET.get('outcome', 'ALL')
-            pair = request.GET.get('pair', '')
-
-            trades = AlphaSignal.objects.exclude(status='APPROVED')
-            if pair: trades = trades.filter(ticker=pair)
-            
-            if outcome == 'WIN': trades = trades.filter(pnl__gt=0)
-            elif outcome == 'LOSS': trades = trades.filter(pnl__lt=0)
-            elif outcome == 'MISSED': trades = trades.filter(status__in=['REJECTED'])
-
-            trades = trades.order_by('-created_at')
-            results = []
-            
-            def safe_float(val):
-                try: return float(val) if val else 0.0
-                except: return 0.0
-
-            for t in trades:
-                analysis_dict = {}
-                raw_analysis = t.analysis_details
-                try:
-                    if raw_analysis: analysis_dict = json.loads(raw_analysis)
-                except: pass
-                
-                results.append({
-                    "uuid": str(t.uuid),
-                    "pair": t.ticker,
-                    "direction": t.signal_direction,
-                    "status": t.status,
-                    "pnl": safe_float(t.pnl),
-                    "entry_price": safe_float(t.entry_price),
-                    "sl_price": safe_float(t.sl),
-                    "tp_price": safe_float(t.tp),
-                    "volume": safe_float(t.ceo_approved_lot),
-                    "exit_price": safe_float(t.exit_price),
-                    "setup_id": t.id,
-                    "analysis_details": t.analysis_details or "{}",
-                    "pre_trade_checklist": t.pre_trade_checklist or "{}",
-                    "images": t.images or "[]",
-                    "result_images": t.result_images or "[]",
-                    "review_data": t.review_data or "{}",
-                    "trade_class": t.trade_class or "",
-                    "narrative": t.narrative or "",
-                    "created_at": int(t.created_at.timestamp()) if t.created_at else 0,
-                })
-            return JsonResponse(results, safe=False)
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+    """DANH SÁCH LỆNH CHO TAB FUSION"""
+    trades = AlphaSignal.objects.all().order_by('-created_at')[:50]
+    data = [{"uuid": str(t.uuid), "pair": t.ticker, "direction": t.signal_direction, 
+             "status": t.status, "pnl": float(t.pnl or 0)} for t in trades]
+    return JsonResponse(data, safe=False)
 
 @csrf_exempt
 def update_journal_review(request):
@@ -870,65 +824,27 @@ def mt5_execution_node(request):
             return JsonResponse({"directive": "REJECTED", "reason": msg})
     except Exception as e: return JsonResponse({"error": str(e)}, status=400)
 
-@csrf_exempt
-def get_risk_logs(request):
-    """CỔNG THỰC THI: NHẬT KÝ HỘP ĐEN (AUDIT TRAIL)"""
-    if request.method == 'GET':
-        logs = RiskLog.objects.all().order_by('-created_at')[:20]
-        data = []
-        for log in logs:
-            data.append({
-                "id": log.id,
-                "ticker": log.signal.ticker if log.signal else "SYSTEM",
-                "decision": log.decision,
-                "reason": log.reason,
-                "timestamp": log.created_at.strftime("%H:%M:%S")
-            })
-        return JsonResponse(data, safe=False)
     
 @csrf_exempt
 def exposure_radar_api(request):
-    """CỔNG THỰC THI: RADAR QUÉT RỦI RO TẬP TRUNG"""
-    if request.method == 'GET':
-        # Chỉ quét các lệnh đang thực thi hoặc đã được duyệt
-        active = AlphaSignal.objects.filter(status__in=['EXECUTED', 'APPROVED'])
-        exposure_map = {}
-        total_val = 0
-        
-        for s in active:
-            lot = s.ceo_approved_lot or 0
-            price = s.entry_price or 1.0
-            # Quy đổi về USD Notional Exposure [cite: 46, 51]
-            val = lot * 100000 * price
-            exposure_map[s.ticker] = exposure_map.get(s.ticker, 0) + val
-            total_val += val
-            
-        radar_data = []
-        for ticker, val in exposure_map.items():
-            percent = (val / total_val * 100) if total_val > 0 else 0
-            radar_data.append({
-                "name": ticker, 
-                "value": round(val, 2), 
-                "percent": round(percent, 2)
-            })
-            
-        return JsonResponse({
-            "total_notional": round(total_val, 2), 
-            "radar_scan": radar_data
-        })
+    """RADAR QUÉT RỦI RO: TÍNH TỈ TRỌNG LỆNH ĐANG CHẠY"""
+    active = AlphaSignal.objects.filter(status__in=['EXECUTED', 'APPROVED'])
+    exposure_map = {}
+    total_val = 0
+    for s in active:
+        val = (s.ceo_approved_lot or 0) * 100000 * (s.entry_price or 1.0)
+        exposure_map[s.ticker] = exposure_map.get(s.ticker, 0) + val
+        total_val += val
+    
+    radar_scan = [{"name": ticker, "value": round(val, 2), "percent": round((val/total_val*100), 2)} 
+                  for ticker, val in exposure_map.items()] if total_val > 0 else []
+    return JsonResponse({"total_notional": round(total_val, 2), "radar_scan": radar_scan})
     
 @csrf_exempt
 def get_risk_logs(request):
-    """TRÍCH XUẤT NHẬT KÝ HỘP ĐEN (SYSTEM AUDIT)"""
-    if request.method == 'GET':
-        logs = RiskLog.objects.all().order_by('-created_at')[:20]
-        data = []
-        for log in logs:
-            data.append({
-                "id": log.id,
-                "ticker": log.signal.ticker if log.signal else "SYSTEM",
-                "decision": log.decision,
-                "reason": log.reason,
-                "timestamp": log.created_at.strftime("%H:%M:%S")
-            })
-        return JsonResponse(data, safe=False)
+    """TRÍCH XUẤT NHẬT KÝ HỘP ĐEN"""
+    logs = RiskLog.objects.all().order_by('-created_at')[:20]
+    data = [{"id": l.id, "ticker": l.signal.ticker if l.signal else "SYSTEM", 
+             "decision": l.decision, "reason": l.reason, 
+             "timestamp": l.created_at.strftime("%H:%M:%S")} for l in logs]
+    return JsonResponse(data, safe=False)
