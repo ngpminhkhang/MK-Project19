@@ -4,7 +4,44 @@ from decimal import Decimal
 from django.utils import timezone
 import uuid
 
-# --- CƠ SỞ DỮ LIỆU DI SẢN (LEGACY) ---
+# ==========================================
+# 1. HẠT NHÂN QUẢN TRỊ (PHẢI ĐỊNH NGHĨA ĐẦU TIÊN)
+# ==========================================
+
+class QuantAccount(models.Model):
+    """Hạt nhân hệ thống - Đã đồng bộ với Admin"""
+    STRATEGY_CHOICES = [
+        ('BALANCED', 'Balanced Alpha'),
+        ('AGGRESSIVE', 'Aggressive Growth'),
+        ('CONSERVATIVE', 'Conservative Hedge'),
+    ]
+    STATUS_CHOICES = [
+        ('NORMAL', 'Normal Operation'),
+        ('REDUCED', 'Reduced Risk (-50%)'),
+        ('HALT', 'System Liquidation / Halt'),
+    ]
+    
+    # Sử dụng 'account_name' và 'balance' để fix lỗi admin.E108
+    account_name = models.CharField(max_length=100)
+    strategy_type = models.CharField(max_length=20, choices=STRATEGY_CHOICES, default='BALANCED')
+    balance = models.FloatField(default=0) 
+    equity = models.FloatField(default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='NORMAL')
+    max_drawdown = models.FloatField(default=0.1)
+    current_drawdown = models.FloatField(default=0.0)
+    
+    # Trường bắt buộc cho Admin
+    last_updated = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.account_name} | {self.strategy_type}"
+
+
+# ==========================================
+# 2. CƠ SỞ DỮ LIỆU DI SẢN (LEGACY VANGUARD)
+# ==========================================
+
 class ForexPair(models.Model):
     pair = models.CharField(max_length=10, unique=True)
     current_rate = models.DecimalField(max_digits=12, decimal_places=5, null=True)
@@ -15,6 +52,7 @@ class ForexPair(models.Model):
         verbose_name_plural = "Forex Pairs"
 
 class MacroData(models.Model):
+    """FIX: Đã đưa MacroData quay lại để dứt điểm ImportError"""
     indicator = models.CharField(max_length=50)
     value = models.DecimalField(max_digits=10, decimal_places=2)
     country = models.CharField(max_length=50)
@@ -62,29 +100,45 @@ class Insight(models.Model):
     attached_file = models.FileField(upload_to='insights/files/', blank=True, null=True)
     def __str__(self): return self.title
 
-# --- HỆ THỐNG QUẢN TRỊ (AUM & RISK) ---
+
+# ==========================================
+# 3. TẦNG HÀNH VI (OCI & DRILL-DOWN)
+# ==========================================
+
+class PerformanceMetrics(models.Model):
+    account = models.OneToOneField(QuantAccount, on_delete=models.CASCADE, related_name='metrics')
+    win_rate = models.FloatField(default=0)
+    profit_factor = models.FloatField(default=1.0)
+    oci_index = models.FloatField(default=0) 
+    total_interventions = models.IntegerField(default=0)
+
 class BehaviorAudit(models.Model):
-    # Lưu lại "hố" cho hội đồng nhảy vào [cite: 793, 918]
-    account = models.ForeignKey(QuantAccount, on_delete=models.CASCADE)
-    event_label = models.CharField(max_length=50) # e.g., "OCI_SPIKE", "MACRO_A_VIOLATION"
-    severity = models.CharField(max_length=10, default="WARNING")
+    """Nhật ký 'vết sẹo' cho hội đồng [cite: 1344]"""
+    SEVERITY = [('INFO', 'Info'), ('WARNING', 'Warning'), ('CRITICAL', 'Critical')]
+    account = models.ForeignKey(QuantAccount, on_delete=models.CASCADE, related_name='behavior_logs')
+    event_label = models.CharField(max_length=50) 
+    severity = models.CharField(max_length=10, choices=SEVERITY, default="WARNING")
     description = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
-class PerformanceMetrics(models.Model):
+class BehaviorMetrics(models.Model):
+    """Chỉ số 'ngáo tự tin' chi tiết [cite: 1350]"""
     account = models.OneToOneField(QuantAccount, on_delete=models.CASCADE)
-    win_rate = models.FloatField()
-    profit_factor = models.FloatField()
-    oci_index = models.FloatField() # Overconfidence Index [cite: 148, 712]
-    total_interventions = models.IntegerField()
+    win_streak = models.IntegerField(default=0)
+    avg_risk_per_trade = models.FloatField(default=0)
+    trade_frequency_24h = models.IntegerField(default=0)
+    oci_score = models.FloatField(default=0) 
+    state = models.CharField(max_length=20, default="STABLE")
+
+
+# ==========================================
+# 4. TẦNG TÍN HIỆU & HỖ TRỢ (EXECUTION STREAM)
+# ==========================================
 
 class AlphaSignal(models.Model):
     STATUS_CHOICES = [
-        ('PENDING', 'Pending AI/CEO Check'), 
-        ('APPROVED', 'Approved'), 
-        ('REJECTED', 'Rejected'), 
-        ('EXECUTED', 'Sent to Broker'), 
-        ('CLOSED', 'Closed')
+        ('PENDING', 'Pending AI/CEO Check'), ('APPROVED', 'Approved'), 
+        ('REJECTED', 'Rejected'), ('EXECUTED', 'Sent to Broker'), ('CLOSED', 'Closed')
     ]
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     ticker = models.CharField(max_length=20)
@@ -118,7 +172,6 @@ class RiskLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self): return f"[{self.decision}] {self.signal.ticker if self.signal else 'Unknown'}"
 
-# --- CÁC MODEL PHỤ TRỢ ---
 class MacroDirective(models.Model):
     title = models.CharField(max_length=100)
     def __str__(self): return self.title
@@ -127,7 +180,7 @@ class SystemLibrary(models.Model):
     category = models.CharField(max_length=20)
     title = models.CharField(max_length=100)
     configuration = models.JSONField(default=dict)
-    created_at = models.DateTimeField(auto_now_add=True, null=True) # Đã bọc thép null=True
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
     def __str__(self): return self.title
 
 class MissedTrade(models.Model):
@@ -136,10 +189,11 @@ class MissedTrade(models.Model):
     reason = models.CharField(max_length=50, null=True)
     notes = models.TextField(null=True)
     image_paths = models.TextField(default="[]")
-    created_at = models.DateTimeField(auto_now_add=True, null=True) # FIX: Thêm null=True tại đây
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
     def __str__(self): return f"{self.pair} - {self.reason}"
 
 class WeeklyReview(models.Model):
+    """FIX: Đã đưa WeeklyReview quay lại để dứt điểm ImportError"""
     account_id = models.IntegerField(default=1)
     week_start_date = models.DateField()
     total_trades = models.IntegerField(default=0)
@@ -169,11 +223,3 @@ class PortfolioSetting(models.Model):
     max_drawdown_limit = models.FloatField(default=10.0)
     max_risk_per_trade = models.FloatField(default=1.0)
     def __str__(self): return f"Settings for {self.account.account_name}"
-
-class BehaviorMetrics(models.Model):
-    account = models.OneToOneField(QuantAccount, on_delete=models.CASCADE)
-    win_streak = models.IntegerField(default=0)
-    avg_risk_per_trade = models.FloatField(default=0)
-    trade_frequency_24h = models.IntegerField(default=0)
-    oci_score = models.FloatField(default=0) # Chỉ số ngáo tự tin (0.0 - 1.0)
-    state = models.CharField(max_length=20, default="STABLE") # STABLE, HOT, TILT
