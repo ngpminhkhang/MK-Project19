@@ -879,3 +879,29 @@ def get_risk_logs(request):
     } for log in logs]
     
     return JsonResponse(data, safe=False)
+
+@csrf_exempt
+def get_trade_ledger(request):
+    """FUSION: Hiển thị nhật ký giao dịch thực tế (Executed)"""
+    executed_trades = AlphaSignal.objects.filter(status__in=['EXECUTED', 'Sent to Broker']).order_by('-created_at')[:30]
+    data = [{
+        "ticker": t.ticker,
+        "direction": t.signal_direction,
+        "entry": t.entry_price,
+        "lot": t.ceo_approved_lot,
+        "pnl": t.pnl,
+        "status": t.status
+    } for t in executed_trades]
+    return JsonResponse(data, safe=False)
+
+@csrf_exempt
+def get_missed_signals(request):
+    """MISSED: Các tín hiệu bị Risk Engine 'trảm' vì quá rủi ro"""
+    rejected = AlphaSignal.objects.filter(status='REJECTED').order_by('-created_at')[:30]
+    data = [{
+        "ticker": t.ticker,
+        "reason": "VaR Breach (>30% Cap)", # Giả lập lý do học thuật
+        "lot": t.ceo_approved_lot,
+        "time": t.created_at.strftime("%H:%M")
+    } for t in rejected]
+    return JsonResponse(data, safe=False)

@@ -55,3 +55,44 @@ def terminal_takeover():
 
 # Hành quyết ngay!
 terminal_takeover()
+
+def institutional_pump():
+    print("🚀 [INIT] Executing 50/30/20 Capital Allocation Protocol...")
+    
+    # Giả định tài khoản có 1.25M USD
+    total_balance = 1250000 
+    
+    # THIẾT LẬP NGÂN SÁCH (BUDGET) THEO TỶ LỆ
+    # 50% Currency | 30% Equity | 20% Commodity
+    allocations = {
+        "CURRENCY": total_balance * 0.50,
+        "EQUITY": total_balance * 0.30,
+        "COMMODITY": total_balance * 0.20
+    }
+
+    for market, budget in allocations.items():
+        tickers = MARKETS[market]
+        # Chia đều ngân sách cho 10 lệnh trong mỗi thị trường
+        budget_per_trade = budget / 10 
+        
+        for ticker in tickers:
+            data = yf.Ticker(ticker).history(period="1d")
+            price = data['Close'].iloc[-1]
+            
+            # TÍNH TOÁN LOT SIZE ĐỂ KHỚP VỚI NGÂN SÁCH (Reverse Engineering)
+            if market == "CURRENCY":
+                # Budget = Lot * 100,000 * Price => Lot = Budget / (100,000 * Price)
+                lot = budget_per_trade / (100000 * price)
+            elif market == "COMMODITY":
+                # Budget = Lot * 100 * Price => Lot = Budget / (100 * Price)
+                lot = budget_per_trade / (100 * price)
+            else: # EQUITY
+                # Budget = Lot * 1 * Price => Lot = Budget / Price
+                lot = budget_per_trade / price
+                
+            # Thực thi lệnh với Lot size đã được "đo ni đóng giày"
+            AlphaSignal.objects.create(
+                ticker=ticker,
+                ceo_approved_lot=round(lot, 2),
+                # ... các trường khác giữ nguyên ...
+            )
