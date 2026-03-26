@@ -63,17 +63,20 @@ class Insight(models.Model):
     def __str__(self): return self.title
 
 # --- HỆ THỐNG QUẢN TRỊ (AUM & RISK) ---
-class QuantAccount(models.Model):
-    account_name = models.CharField(max_length=100)
-    balance = models.FloatField(default=0.0)
-    equity = models.FloatField(default=0.0)
-    margin = models.FloatField(default=0.0)
-    free_margin = models.FloatField(default=0.0)
-    margin_level = models.FloatField(default=0.0)
-    account_currency = models.CharField(max_length=10, default="USD")
-    status = models.CharField(max_length=20, default="NORMAL") 
-    last_updated = models.DateTimeField(auto_now=True)
-    def __str__(self): return f"{self.account_name} - Equity: {self.equity}"
+class BehaviorAudit(models.Model):
+    # Lưu lại "hố" cho hội đồng nhảy vào [cite: 793, 918]
+    account = models.ForeignKey(QuantAccount, on_delete=models.CASCADE)
+    event_label = models.CharField(max_length=50) # e.g., "OCI_SPIKE", "MACRO_A_VIOLATION"
+    severity = models.CharField(max_length=10, default="WARNING")
+    description = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+class PerformanceMetrics(models.Model):
+    account = models.OneToOneField(QuantAccount, on_delete=models.CASCADE)
+    win_rate = models.FloatField()
+    profit_factor = models.FloatField()
+    oci_index = models.FloatField() # Overconfidence Index [cite: 148, 712]
+    total_interventions = models.IntegerField()
 
 class AlphaSignal(models.Model):
     STATUS_CHOICES = [
