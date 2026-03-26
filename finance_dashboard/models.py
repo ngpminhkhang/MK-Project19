@@ -166,3 +166,11 @@ class PortfolioSetting(models.Model):
     max_drawdown_limit = models.FloatField(default=10.0)
     max_risk_per_trade = models.FloatField(default=1.0)
     def __str__(self): return f"Settings for {self.account.account_name}"
+
+class BehaviorMetrics(models.Model):
+    account = models.OneToOneField(QuantAccount, on_delete=models.CASCADE)
+    win_streak = models.IntegerField(default=0)
+    avg_risk_per_trade = models.FloatField(default=0)
+    trade_frequency_24h = models.IntegerField(default=0)
+    oci_score = models.FloatField(default=0) # Chỉ số ngáo tự tin (0.0 - 1.0)
+    state = models.CharField(max_length=20, default="STABLE") # STABLE, HOT, TILT
