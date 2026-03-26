@@ -22,4 +22,6 @@ urlpatterns = [
     # Signal & Execution (Cầu nối MT5)
     path('api/scenarios/', api.get_scenarios, name='api_get_scenarios'),
     path('api/mt5/execution/', api.mt5_execution_node, name='api_mt5_execution'),
+
+    path('api/stress_test/', api.get_stress_test, name='api_stress_test'),
 ]

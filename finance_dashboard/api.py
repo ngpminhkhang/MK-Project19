@@ -905,3 +905,46 @@ def get_missed_signals(request):
         "time": t.created_at.strftime("%H:%M")
     } for t in rejected]
     return JsonResponse(data, safe=False)
+
+@csrf_exempt
+def get_stress_test(request):
+    """
+    STRESS TEST ENGINE: Giả lập kịch bản 'tận thế' để xem sếp mất bao nhiêu tiền.
+    """
+    active = AlphaSignal.objects.filter(status='EXECUTED')
+    
+    # 3 kịch bản khủng hoảng 
+    scenarios = {
+        "EQUITY_MELTDOWN": {"label": "Global Equity Crash (-10%)", "impact": -0.10, "target": "EQUITY"},
+        "GOLD_COLLAPSE": {"label": "Commodity Meltdown (-5%)", "impact": -0.05, "target": "COMMODITY"},
+        "USD_HYPER": {"label": "USD Hyper-Inflation (+3%)", "impact": 0.03, "target": "CURRENCY"}
+    }
+    
+    results = []
+    for key, scene in scenarios.items():
+        potential_pnl = 0
+        for pos in active:
+            ticker = pos.ticker.upper()
+            lot = pos.ceo_approved_lot or 0
+            price = pos.entry_price or 1.0
+            
+            # Xác định lớp tài sản để áp shock
+            if scene["target"] == "COMMODITY" and any(x in ticker for x in ['GC', 'SI', 'CL']):
+                c_size = 100
+            elif scene["target"] == "EQUITY" and any(x in ticker for x in ['AAPL', 'NVDA', 'BTC', 'ETH']):
+                c_size = 1
+            elif scene["target"] == "CURRENCY" and not any(x in ticker for x in ['GC', 'SI', 'CL', 'AAPL', 'NVDA', 'BTC', 'ETH']):
+                c_size = 100000
+            else:
+                continue # Không thuộc mục tiêu của kịch bản này
+                
+            notional = lot * c_size * price
+            potential_pnl += notional * scene["impact"]
+            
+        results.append({
+            "scenario": scene["label"],
+            "impact_pnl": round(potential_pnl, 2),
+            "risk_level": "CRITICAL" if abs(potential_pnl) > 100000 else "WARNING"
+        })
+        
+    return JsonResponse(results, safe=False)
