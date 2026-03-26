@@ -827,8 +827,12 @@ def mt5_execution_node(request):
     
 @csrf_exempt
 def exposure_radar_api(request):
-    """BỘ QUÉT RỦI RO: ÉP TỶ PHÚ TRỞ VỀ THỰC TẠI"""
-    active = AlphaSignal.objects.filter(status__in=['EXECUTED', 'APPROVED', 'Sent to Broker'])
+    """
+    QUANTITATIVE RADAR: Phân loại 3 thị trường & ép rủi ro về thực tại.
+    Công thức: $$Value = Lot \times ContractSize \times Price$$
+    """
+    # Chỉ quét lệnh đang thực thi để tính Exposure thật
+    active = AlphaSignal.objects.filter(status='EXECUTED')
     exposure_map = {}
     total_val = 0
     
@@ -837,24 +841,15 @@ def exposure_radar_api(request):
         price = pos.entry_price or 1.0
         ticker = pos.ticker.upper()
         
-        # --- CẤU HÌNH HỆ SỐ NHÂN (CONTRACT SIZE) CHUẨN QUANT ---
-        # 1. Commodity (GC, SI, PL, CL, HG) -> Multiplier = 100
+        # --- THIẾT LẬP CONTRACT SIZE HỌC THUẬT ---
         if any(x in ticker for x in ['GC', 'SI', 'PL', 'CL', 'HG']):
-            contract_size = 100 
-            market = "Commodity Market"
-        # 2. Equity & Crypto (AAPL, BTC, ETH, TSLA...) -> Multiplier = 1
+            c_size, market = 100, "Commodity Market"
         elif any(x in ticker for x in ['AAPL', 'NVDA', 'TSLA', 'MSFT', 'GOOGL', 'BTC', 'ETH']):
-            contract_size = 1
-            market = "Equity Market"
-        # 3. Currency (Forex) -> Multiplier = 100,000
+            c_size, market = 1, "Equity Market"
         else:
-            contract_size = 100000
-            market = "Currency Market"
+            c_size, market = 100000, "Currency Market"
             
-        # Công thức Notional Exposure
-        val = lot * contract_size * price
-        
-        # Gộp nhóm để Radar hiển thị "Học thuật"
+        val = lot * c_size * price
         exposure_map[market] = exposure_map.get(market, 0) + val
         total_val += val
         
@@ -863,4 +858,24 @@ def exposure_radar_api(request):
         for k, v in exposure_map.items() if total_val > 0
     ]
     
-    return JsonResponse({"total_notional": round(total_val, 2), "radar_scan": radar_data})
+    return JsonResponse({
+        "total_notional": round(total_val, 2), 
+        "radar_scan": radar_data
+    })
+
+@csrf_exempt
+def get_risk_logs(request):
+    """
+    ORDER AUDIT TRAIL: Lấy danh sách nhật ký rủi ro để lấp đầy UI.
+    """
+    # Lấy 50 log mới nhất để iPad nhìn cho "kín cổng cao tường"
+    logs = RiskLog.objects.select_related('signal').order_by('-id')[:50]
+    data = [{
+        "id": log.id,
+        "timestamp": log.signal.created_at.strftime("%H:%M:%S") if log.signal else "00:00:00",
+        "ticker": log.signal.ticker if log.signal else "N/A",
+        "decision": log.decision,
+        "reason": log.reason
+    } for log in logs]
+    
+    return JsonResponse(data, safe=False)
