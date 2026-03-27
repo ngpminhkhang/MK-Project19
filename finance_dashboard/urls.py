@@ -24,4 +24,5 @@ urlpatterns = [
     path('api/mt5/execution/', api.mt5_execution_node, name='api_mt5_execution'),
 
     path('api/stress_test/', api.get_stress_test, name='api_stress_test'),
+    path('api/mt5/direct_fire/', views.mt5_direct_fire_api, name='mt5_direct_fire'),
 ]

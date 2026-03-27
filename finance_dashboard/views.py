@@ -13,6 +13,7 @@ from django.db.models import Q
 from django.core.paginator import Paginator
 from django.template.loader import render_to_string
 from tenacity import retry, stop_after_attempt, wait_fixed
+from .risk_services import process_oci_impact
 
 # Import Models & Engines
 from .models import (
@@ -344,3 +345,35 @@ def radar_blip_api(request):
         return JsonResponse({"message": "Radar locked"})
     return JsonResponse({"error": "POST ONLY"}, status=405)
 
+@csrf_exempt
+def mt5_direct_fire_api(request):
+    """
+    TÂM ĐIỂM HỎA LỰC: Nơi bóp cò lệnh và tính toán độ 'ngáo' (OCI)
+    """
+    if request.method != 'POST': 
+        return JsonResponse({"error": "POST ONLY"}, status=405)
+        
+    try:
+        data = json.loads(request.body)
+        ticker = data.get('ticker')
+        direction = data.get('direction')
+        volume = data.get('volume')
+        account_id = data.get('account_id', 1) # Mặc định là tài khoản 1 nếu thiếu
+
+        # --- ĐOẠN NÀY LÀ KHÚC 'ĐIỆN ẢNH' ---
+        # 1. Bắn lệnh sang MT5 (Giả lập hoặc gọi logic MT5 của sếp)
+        # res_mt5 = call_mt5_logic(ticker, direction, volume) 
+        
+        # 2. Ngay khi lệnh 'vút bay', chúng ta tính điểm OCI ngay lập tức 
+        new_oci = process_oci_impact(account_id, volume)
+        
+        logger.info(f"🚀 FIRE: {direction} {volume} Lots {ticker}. New OCI: {new_oci}")
+        
+        return JsonResponse({
+            "status": "EXECUTED",
+            "oci_index": new_oci,
+            "message": "LÍNH ĐÁNH THUÊ MT5 ĐANG LÊN ĐẠN!"
+        })
+        
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

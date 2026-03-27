@@ -52,3 +52,34 @@ class ExecutionService:
     def execute_signal(signal_id):
         # Logic thực thi lệnh sẽ được triển khai sau
         pass
+
+def process_oci_impact(account_id, new_lot_size):
+    """
+    Hàm 'Xích quái vật': Tính toán và cập nhật chỉ số hưng phấn (OCI).
+    """
+    try:
+        # 1. Lấy hoặc tạo mới metrics cho tài khoản
+        metrics, created = PerformanceMetrics.objects.get_or_create(account_id=account_id)
+        
+        # 2. Logic 'Rút củi đáy nồi': 
+        # Nếu sếp đánh Lot size > 2.0, hệ thống coi là bắt đầu 'say máu'
+        lot_val = float(new_lot_size)
+        if lot_val > 2.0:
+            # Tăng điểm OCI mỗi khi sếp bung lụa
+            metrics.oci_index = min(1.0, metrics.oci_index + 0.05)
+            
+            # 3. Kích hoạt 'Hố đào hội đồng': Ghi log khi OCI đạt mức HOT (> 0.8)
+            if metrics.oci_index > 0.8:
+                BehaviorAudit.objects.create(
+                    account_id=account_id,
+                    event_label="OCI_SPIKE",
+                    severity="CRITICAL",
+                    description=f"Hệ thống phát hiện trạng thái Euphoria (Hưng phấn quá đà). Lot size {lot_val} vượt ngưỡng an toàn hành vi.",
+                    timestamp=timezone.now()
+                )
+        
+        metrics.save()
+        return metrics.oci_index
+    except Exception as e:
+        print(f"Lỗi OCI Engine: {e}")
+        return 0
