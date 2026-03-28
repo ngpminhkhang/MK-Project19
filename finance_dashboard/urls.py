@@ -3,7 +3,7 @@ from . import views, api
 
 urlpatterns = [
     # --- WEBSITE FRONTEND ---
-    path('', views.home, name='home'),
+    path('', api.system_health_check, name='home'),
     path('analysis/', views.analysis, name='analysis'),
     path('portfolio/', views.portfolio, name='portfolio'),
     path('about/', views.about, name='about'),
@@ -25,4 +25,10 @@ urlpatterns = [
 
     path('api/stress_test/', api.get_stress_test, name='api_stress_test'),
     path('api/mt5/direct_fire/', views.mt5_direct_fire_api, name='mt5_direct_fire'),
+
+    path('api/v1/dashboard/', api.get_quant_dashboard_data, name='api_quant_dashboard'),
+
+    path('api/v1/alpha-engine/', api.get_alpha_engine_data, name='api_alpha_engine'),
+    path('api/v1/risk-engine/', api.get_risk_engine_data, name='api_risk_engine'),
+    path('api/v1/behavioral-analytics/', api.get_behavioral_analytics_data, name='api_behavioral_analytics'),
 ]

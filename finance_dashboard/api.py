@@ -2,6 +2,7 @@ import json
 import traceback
 import uuid
 from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
 from django.db import transaction
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Sum
@@ -948,3 +949,102 @@ def get_stress_test(request):
         })
         
     return JsonResponse(results, safe=False)
+
+# ==========================================
+# CỤM API CHO GIAO DIỆN MK QUANT (MOCK DATA)
+# ==========================================
+
+# 1. API CHO AUM TERMINAL (DASHBOARD CHÍNH)
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_quant_dashboard_data(request):
+    payload = {
+        "status": "success",
+        "data": {
+            "performanceData": [
+                {"day": "Mon", "equity": 350000},
+                {"day": "Tue", "equity": 365000},
+                {"day": "Wed", "equity": 380000},
+                {"day": "Thu", "equity": 372000},
+                {"day": "Fri", "equity": 375135},
+            ],
+            "enforcementHub": {
+                "systemLocks": 14,
+                "macroViolations": 3,
+                "accountMode": "REDUCED SIZE"
+            },
+            "diagnostics": {
+                "oci": 0.84,
+                "winRate": 68,
+                "state": "EUPHORIC - CLAMPED"
+            },
+            "auditTrail": [
+                {"id": 1, "date": "03-25", "event": "MACRO A BREACH", "desc": "US VIX > 25, correlated spreads", "status": "HALTED"},
+                {"id": 2, "date": "03-24", "event": "OCI LOCKDOWN", "desc": "Win streak size > 40%", "status": "REDUCED"},
+                {"id": 3, "date": "03-22", "event": "MACRO B VIOLATION", "desc": "Risk filter triggered.", "status": "HALTED"},
+                {"id": 4, "date": "03-21", "event": "DRAWDOWN LIMIT", "desc": "1.5% Daily loss engagement", "status": "HALTED"}
+            ]
+        }
+    }
+    return JsonResponse(payload)
+
+# 2. API CHO ALPHA ENGINE
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_alpha_engine_data(request):
+    return JsonResponse({
+        "status": "success",
+        "data": {
+            "latency": "12ms",
+            "activeNodes": 3,
+            "uptime": "99.9%",
+            "liveFeed": [
+                {"id": 1, "time": "08:12:45", "pair": "EURUSD", "action": "BUY LIMIT", "size": "0.5 Lots", "status": "PENDING"},
+                {"id": 2, "time": "08:10:12", "pair": "GBPUSD", "action": "SELL", "size": "1.2 Lots", "status": "FILLED"},
+                {"id": 3, "time": "07:55:00", "pair": "USDJPY", "action": "BUY", "size": "0.8 Lots", "status": "FILLED"}
+            ]
+        }
+    })
+
+# 3. API CHO RISK ENGINE
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_risk_engine_data(request):
+    return JsonResponse({
+        "status": "success",
+        "data": {
+            "maxDrawdown": "2.00%",
+            "currentDrawdown": "0.45%",
+            "kellyFraction": "f* = 0.12",
+            "hardLocks": [
+                {"id": 1, "trigger": "Daily Loss Limit", "status": "ARMED"},
+                {"id": 2, "trigger": "Margin Utilization (Max 30%)", "status": "ARMED"},
+                {"id": 3, "trigger": "Event Volatility Filter", "status": "ACTIVE"}
+            ]
+        }
+    })
+
+# 4. API CHO BEHAVIORAL ANALYTICS
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_behavioral_analytics_data(request):
+    return JsonResponse({
+        "status": "success",
+        "data": {
+            "oci": "0.84",
+            "discipline": "92%",
+            "consecutiveWins": 4
+        }
+    })
+
+@require_http_methods(["GET"])
+def system_health_check(request):
+    """
+    Trạm gác cổng chính: Báo cáo tình trạng máy chủ khi có ai tò mò gõ thẳng vào link gốc.
+    """
+    return JsonResponse({
+        "status": "ONLINE",
+        "engine": "MK Quant Backend Core",
+        "version": "1.0.0",
+        "message": "System active. Awaiting Alpha Node execution."
+    })
