@@ -958,34 +958,90 @@ def get_stress_test(request):
 @csrf_exempt
 @require_http_methods(["GET"])
 def get_quant_dashboard_data(request):
-    payload = {
-        "status": "success",
-        "data": {
+    """
+    Data Cinema Engine: Returns data frames based on the 'step' query parameter.
+    Trạm gác trả về kịch bản tắm máu tháng 3/2020.
+    """
+    # Lấy thông số 'step' từ React. Mặc định là bước 0 (Bình yên)
+    step = int(request.GET.get('step', 0))
+
+    # KỊCH BẢN ĐIỆN ẢNH (FRAMES)
+    frames = [
+        # STEP 0: Normal Market (The calm before the storm)
+        {
             "performanceData": [
                 {"day": "Mon", "equity": 350000},
                 {"day": "Tue", "equity": 365000},
-                {"day": "Wed", "equity": 380000},
-                {"day": "Thu", "equity": 372000},
-                {"day": "Fri", "equity": 375135},
             ],
-            "enforcementHub": {
-                "systemLocks": 14,
-                "macroViolations": 3,
-                "accountMode": "REDUCED SIZE"
-            },
-            "diagnostics": {
-                "oci": 0.84,
-                "winRate": 68,
-                "state": "EUPHORIC - CLAMPED"
-            },
+            "enforcementHub": {"systemLocks": 0, "macroViolations": 0, "accountMode": "NORMAL"},
+            "diagnostics": {"oci": 0.45, "winRate": 72, "state": "STABLE"},
             "auditTrail": [
-                {"id": 1, "date": "03-25", "event": "MACRO A BREACH", "desc": "US VIX > 25, correlated spreads", "status": "HALTED"},
-                {"id": 2, "date": "03-24", "event": "OCI LOCKDOWN", "desc": "Win streak size > 40%", "status": "REDUCED"},
-                {"id": 3, "date": "03-22", "event": "MACRO B VIOLATION", "desc": "Risk filter triggered.", "status": "HALTED"},
-                {"id": 4, "date": "03-21", "event": "DRAWDOWN LIMIT", "desc": "1.5% Daily loss engagement", "status": "HALTED"}
-            ]
+                {"id": 1, "date": "2020-03-09", "event": "NODE BOOT", "desc": "Market structure mapped.", "status": "ACTIVE"}
+            ],
+            "aum": 365000
+        },
+        # STEP 1: Euphoria (Thắng liên tục, trader bắt đầu ngáo)
+        {
+            "performanceData": [
+                {"day": "Mon", "equity": 350000},
+                {"day": "Tue", "equity": 365000},
+                {"day": "Wed", "equity": 395000},
+            ],
+            "enforcementHub": {"systemLocks": 1, "macroViolations": 0, "accountMode": "WATCHLIST"},
+            "diagnostics": {"oci": 0.88, "winRate": 85, "state": "EUPHORIC - HOT"},
+            "auditTrail": [
+                {"id": 2, "date": "2020-03-10", "event": "OCI WARNING", "desc": "Win streak decoupling from risk baseline.", "status": "FLAGGED"},
+                {"id": 1, "date": "2020-03-09", "event": "NODE BOOT", "desc": "Market structure mapped.", "status": "ACTIVE"}
+            ],
+            "aum": 395000
+        },
+        # STEP 2: The Flash Crash (Thị trường sập, hệ thống tự động bóp phanh)
+        {
+            "performanceData": [
+                {"day": "Mon", "equity": 350000},
+                {"day": "Tue", "equity": 365000},
+                {"day": "Wed", "equity": 395000},
+                {"day": "Thu", "equity": 372000},
+            ],
+            "enforcementHub": {"systemLocks": 12, "macroViolations": 2, "accountMode": "REDUCED_SIZE"},
+            "diagnostics": {"oci": 0.95, "winRate": 68, "state": "CLAMPED"},
+            "auditTrail": [
+                {"id": 4, "date": "2020-03-11", "event": "MACRO BREACH", "desc": "GBP/USD 5% drop detected. Volatility > 99th percentile.", "status": "REDUCED"},
+                {"id": 3, "date": "2020-03-11", "event": "SIZE CLAMP", "desc": "Enforced 50% lot size reduction.", "status": "ARMED"},
+                {"id": 2, "date": "2020-03-10", "event": "OCI WARNING", "desc": "Win streak decoupling from risk baseline.", "status": "FLAGGED"}
+            ],
+            "aum": 372000
+        },
+        # STEP 3: Full Lockdown (Tắt điện, bảo toàn vốn)
+        {
+            "performanceData": [
+                {"day": "Mon", "equity": 350000},
+                {"day": "Tue", "equity": 365000},
+                {"day": "Wed", "equity": 395000},
+                {"day": "Thu", "equity": 372000},
+                {"day": "Fri", "equity": 371500},
+            ],
+            "enforcementHub": {"systemLocks": 28, "macroViolations": 5, "accountMode": "HALTED"},
+            "diagnostics": {"oci": 0.30, "winRate": 65, "state": "LOCKED"},
+            "auditTrail": [
+                {"id": 6, "date": "2020-03-12", "event": "HARD STOP", "desc": "Max drawdown limit reached. Executing force-close.", "status": "HALTED"},
+                {"id": 5, "date": "2020-03-12", "event": "LIQUIDITY DRAIN", "desc": "Bid/Ask spread > 50 pips. Trading unsafe.", "status": "HALTED"},
+                {"id": 4, "date": "2020-03-11", "event": "MACRO BREACH", "desc": "GBP/USD 5% drop detected. Volatility > 99th percentile.", "status": "REDUCED"}
+            ],
+            "aum": 371500
         }
+    ]
+
+    # Ngăn lỗi Out of Bounds nếu sếp bấm quá tay
+    safe_step = min(step, len(frames) - 1)
+    
+    payload = {
+        "status": "success",
+        "current_step": safe_step,
+        "total_steps": len(frames),
+        "data": frames[safe_step]
     }
+    
     return JsonResponse(payload)
 
 # 2. API CHO ALPHA ENGINE

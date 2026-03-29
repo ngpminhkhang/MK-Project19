@@ -1,54 +1,59 @@
-import logging
-import numpy as np
-from .models import AlphaSignal, QuantAccount
-
-logger = logging.getLogger(__name__)
-
-class BehavioralEngine:
-    @staticmethod
-    def analyze_trader_psyche():
-        past_trades = AlphaSignal.objects.filter(status='CLOSED').order_by('-updated_at')[:20]
-        if len(past_trades) < 5: return "STABLE", 1.0, 0.0 
-        
-        wins = [t for t in past_trades if t.pnl and float(t.pnl) > 0]
-        win_rate = len(wins) / len(past_trades)
-        
-        win_streak = 0
-        for t in past_trades:
-            if t.pnl and float(t.pnl) > 0: win_streak += 1
-            else: break
-            
-        pnls = [float(t.pnl) for t in past_trades if t.pnl]
-        volatility = np.std(pnls) if pnls else 0
-        oci = win_rate * win_streak * (volatility / 100 + 1)
-        
-        if win_streak >= 4 or oci > 5.0: return "HOT", 0.8, oci 
-        return "STABLE", 1.0, oci
+# MK/finance_dashboard/risk_engine.py
 
 class KellyEngine:
-    @staticmethod
-    def calculate_final_bullet(capital, win_rate=0.5, rr_ratio=2.0):
-        regime, penalty, oci = BehavioralEngine.analyze_trader_psyche()
-        if regime == "TILT": return 0.0
-        
-        raw_kelly = win_rate - ((1.0 - win_rate) / rr_ratio)
-        final_allocation = (capital * (raw_kelly / 2.0)) * penalty 
-        return round(max(0.0, final_allocation), 2)
+    pass
 
 class CentralRiskEngine:
-    HARD_LIMIT_PCT = 30.0
+    pass
+class BehavioralRiskEngine:
+    """
+    Central Risk Engine: Rút củi dưới đáy nồi.
+    Trị dứt điểm căn bệnh hưng phấn và trả thù thị trường.
+    """
+    def __init__(self, account_id):
+        self.account_id = account_id
+        self.base_risk_limit = 0.02 # Max 2% rủi ro cho mỗi lệnh chuẩn
 
-    @staticmethod
-    def get_total_notional_exposure():
-        active = AlphaSignal.objects.filter(status__in=['EXECUTED', 'APPROVED'])
-        return sum([(s.ceo_approved_lot or 0) * 100000 * (s.entry_price or 1.0) for s in active])
+    def calculate_oci(self, win_rate, avg_size, trade_freq):
+        """
+        Tính toán Overconfidence Index (OCI)
+        """
+        # Trọng số cảnh báo: Nếu Win Rate > 70% và nhồi lệnh liên tục -> OCI bùng nổ
+        oci = (win_rate * 1.5) * avg_size * trade_freq
+        return round(oci, 2)
 
-    @classmethod
-    def validate_new_trade(cls, balance, new_lot, price):
-        current_exp = cls.get_total_notional_exposure()
-        new_exp = (new_lot * 100000 * price)
-        total_pct = ((current_exp + new_exp) / balance) * 100 if balance > 0 else 100
-        
-        if total_pct > cls.HARD_LIMIT_PCT:
-            return False, f"TỪ CHỐI! Exposure {total_pct:.2f}% vượt ngưỡng 30%."
-        return True, f"An toàn. Exposure hiện tại: {total_pct:.2f}%."
+    def adaptive_risk_dampening(self, current_streak, win_rate, avg_size, trade_freq):
+        """
+        Cơ chế tự động bóp nghẹt rủi ro (Self-Correcting)
+        """
+        oci_score = self.calculate_oci(win_rate, avg_size, trade_freq)
+        current_risk_allowance = self.base_risk_limit
+
+        system_action = "NORMAL"
+        rationale = "Hệ thống ổn định. Cho phép duy trì rủi ro."
+
+        # CẤP ĐỘ 1: RÚT CỦI NHẸ (Chuỗi thắng bắt đầu làm mờ lý trí)
+        if current_streak >= 3 and oci_score > 0.6:
+            current_risk_allowance = self.base_risk_limit * 0.8 # Giảm 20% đòn bẩy
+            system_action = "RESTRICTED_L1"
+            rationale = f"Phát hiện hưng phấn (OCI: {oci_score}). Cắt giảm 20% hạn mức vào lệnh."
+
+        # CẤP ĐỘ 2: ĐẠP PHANH KHẨN CẤP (Ngáo quyền lực)
+        elif current_streak >= 5 and oci_score > 0.8:
+            current_risk_allowance = self.base_risk_limit * 0.5 # Bóp nghẹt 50%
+            system_action = "RESTRICTED_L2"
+            rationale = f"Chuỗi thắng {current_streak} lệnh. OCI vượt ngưỡng đỏ ({oci_score}). Ép giảm 50% kích thước vị thế."
+            
+        return {
+            "allowed_risk": current_risk_allowance,
+            "oci_score": oci_score,
+            "action": system_action,
+            "rationale": rationale
+        }
+
+# Chạy thử nghiệm hệ thống tại chỗ
+if __name__ == "__main__":
+    engine = BehavioralRiskEngine("MK_NODE_01")
+    # Giả lập: Thắng 6 lệnh thông, win rate 85%, đánh khối lượng lớn
+    result = engine.adaptive_risk_dampening(current_streak=6, win_rate=0.85, avg_size=1.2, trade_freq=4)
+    print(f"Lệnh trừng phạt từ Core: {result}")
